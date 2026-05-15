@@ -10,7 +10,11 @@ DEV_PORT=3104
 echo "==> Extract sources"
 mkdir -p "$PROD_ROOT" "$DEV_ROOT"
 tar -xzf "$ARCHIVE" -C "$PROD_ROOT"
-rsync -a --delete "$PROD_ROOT/" "$DEV_ROOT/"
+# prod .env larni dev ga ko‘chirmaslik — aks holda dev noto‘g‘ri bazaga ulanyapti
+rsync -a --delete \
+  --exclude 'backend/.env' \
+  --exclude '.env' \
+  "$PROD_ROOT/" "$DEV_ROOT/"
 
 gen_secret() { openssl rand -hex 24; }
 
