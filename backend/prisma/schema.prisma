@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  OPERATOR
+}
+
+enum IntakeStatus {
+  PENDING
+  PARTIALLY_SORTED
+  SORTED
+}
+
+enum SortedStatus {
+  IN_STOCK
+  PROCESSED
+}
+
+enum WarehouseUnit {
+  KG
+  PCS
+}
+
+enum WarehouseSource {
+  PROCESSED
+  EXTERNAL
+}
+
+enum WarehouseStatus {
+  IN_STOCK
+  SOLD_OUT
+  CONSUMED_OUT
+}
+
+enum OutcomeType {
+  SOLD
+  CONSUMED
+}
+
+// =====================================================================
+// USERS & AUTH
+// =====================================================================
+
+model User {
+  id            String         @id @default(cuid())
+  fullName      String
+  login         String         @unique
+  passwordHash  String
+  role          Role           @default(OPERATOR)
+  /// Qaysi ilova sahifalariga kirishi mumkin (ADMIN uchun ham saqlanadi; kirishda ADMIN doim barchasiga ega)
+  allowedRoutes String[]       @default([])
+  /// Ishchi lavozimlari (erkin matn — korxonada qanday lavozim ekanini yozasiz)
+  positions     String[]       @default([])
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+// =====================================================================
+// CRM
+// =====================================================================
+
+model Customer {
+  id               String    @id @default(cuid())
+  fullName         String
+  phone            String
+  address          String?
+  lastPurchaseDate DateTime?
+  totalSpent       Float     @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  intakes  Intake[]
+  outcomes WarehouseOutcome[]
+
+  @@index([phone])
+}
+
+// =====================================================================
+// SORTING — INTAKE → SORTED → PROCESSED
+// =====================================================================
+
+/// Saralash kategoriyasi (paper/plastic/glass/metal/cardboard/other yoki erkin nom)
+model SortCategory {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  label     String
+  emoji     String?
+  createdAt DateTime @default(now())
+
+  sortedMaterials  SortedMaterial[]
+  processedBatches ProcessedBatch[]
+  warehouseItems   WarehouseItem[]
+}
+
+/// Korxonaga kelgan xomashyo (saralanmagan yoki qisman saralangan)
+model Intake {
+  id                 String       @id @default(cuid())
+  date               DateTime
+  materialName       String
+  weightKg           Float
+  remainingKg        Float
+  status             IntakeStatus @default(PENDING)
+  sourceCustomerId   String?
+  sourceCustomer     Customer?    @relation(fields: [sourceCustomerId], references: [id])
+  notes              String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  sortedMaterials SortedMaterial[]
+
+  @@index([date])
+  @@index([status])
+}
+
+/// Saralangan xomashyo (kategoriya bo'yicha)
+model SortedMaterial {
+  id          String       @id @default(cuid())
+  intakeId    String
+  intake      Intake       @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    SortCategory @relation(fields: [categoryId], references: [id])
+  weightKg    Float
+  remainingKg Float
+  status      SortedStatus @default(IN_STOCK)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  consumptions ProcessedBatchSource[]
+
+  @@index([categoryId])
+  @@index([status])
+}
+
+/// Press qilingan tayyor mahsulot partiyasi
+model ProcessedBatch {
+  id          String       @id @default(cuid())
+  date        DateTime
+  productName String
+  categoryId  String
+  category    SortCategory @relation(fields: [categoryId], references: [id])
+  weightKg    Float
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  sources         ProcessedBatchSource[]
+  warehouseItem   WarehouseItem?
+}
+
+/// Press partiyada qaysi saralangan xomashyodan qancha olinganligi
+model ProcessedBatchSource {
+  id               String          @id @default(cuid())
+  batchId          String
+  batch            ProcessedBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  sortedMaterialId String
+  sortedMaterial   SortedMaterial  @relation(fields: [sortedMaterialId], references: [id])
+  takenKg          Float
+  createdAt        DateTime        @default(now())
+}
+
+// =====================================================================
+// WAREHOUSE — IN-STOCK ITEMS & OUTCOMES (sale / consumption)
+// =====================================================================
+
+model WarehouseItem {
+  id            String          @id @default(cuid())
+  productName   String
+  categoryId    String
+  category      SortCategory    @relation(fields: [categoryId], references: [id])
+  unit          WarehouseUnit   @default(KG)
+  initialQty    Float
+  currentQty    Float
+  incomeDate    DateTime
+  source        WarehouseSource @default(EXTERNAL)
+  sourceBatchId String?         @unique
+  sourceBatch   ProcessedBatch? @relation(fields: [sourceBatchId], references: [id])
+  notes         String?
+  status        WarehouseStatus @default(IN_STOCK)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  outcomes WarehouseOutcome[]
+
+  @@index([categoryId])
+  @@index([status])
+}
+
+model WarehouseOutcome {
+  id              String         @id @default(cuid())
+  warehouseItemId String
+  warehouseItem   WarehouseItem  @relation(fields: [warehouseItemId], references: [id], onDelete: Cascade)
+  type            OutcomeType
+  quantity        Float
+  unit            WarehouseUnit
+  date            DateTime
+
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  customerName String?
+
+  pricePerUnit Float?
+  totalAmount  Float?
+  reason       String?
+  notes        String?
+  createdAt    DateTime  @default(now())
+
+  @@index([type])
+  @@index([date])
+}

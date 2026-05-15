@@ -1,0 +1,16 @@
+import { jsx as _jsx } from "react/jsx-runtime";
+import * as React from 'react';
+import { cn } from './utils';
+export const Table = React.forwardRef(({ className, ...props }, ref) => (_jsx("div", { className: "w-full overflow-x-auto", children: _jsx("table", { ref: ref, className: cn('w-full text-left text-sm', className), ...props }) })));
+Table.displayName = 'Table';
+export const TableHeader = React.forwardRef(({ className, ...props }, ref) => (_jsx("thead", { ref: ref, className: cn('bg-slate-50 dark:bg-slate-800/60', className), ...props })));
+TableHeader.displayName = 'TableHeader';
+export const TableBody = React.forwardRef(({ className, ...props }, ref) => _jsx("tbody", { ref: ref, className: className, ...props }));
+TableBody.displayName = 'TableBody';
+export const TableRow = React.forwardRef(({ className, ...props }, ref) => (_jsx("tr", { ref: ref, className: cn('border-t border-slate-100 transition-colors hover:bg-slate-50/70 dark:border-slate-700 dark:hover:bg-slate-700/40', className), ...props })));
+TableRow.displayName = 'TableRow';
+export const TableHead = React.forwardRef(({ className, ...props }, ref) => (_jsx("th", { ref: ref, className: cn('px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400', className), ...props })));
+TableHead.displayName = 'TableHead';
+export const TableCell = React.forwardRef(({ className, ...props }, ref) => (_jsx("td", { ref: ref, className: cn('px-4 py-3 text-sm text-slate-700 dark:text-slate-200', className), ...props })));
+TableCell.displayName = 'TableCell';
+export const TableEmpty = ({ colSpan, message }) => (_jsx("tr", { children: _jsx("td", { colSpan: colSpan, className: "px-4 py-12 text-center text-sm text-slate-400 dark:text-slate-500", children: message ?? "Ma'lumot mavjud emas" }) }));
