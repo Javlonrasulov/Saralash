@@ -129,6 +129,17 @@ export interface SupplierDebtRepayment {
   createdAt: string;
 }
 
+/** Mijozdan qarz uchun kelgan to‘lov (balanceDue kamayadi). */
+export interface CustomerDebtRepayment {
+  id: string;
+  customerId: string;
+  customerName: string;
+  amount: number;
+  date: string;
+  notes?: string | null;
+  createdAt: string;
+}
+
 /** Ombordagi mahsulot. */
 export interface WarehouseItem {
   id: string;
@@ -245,6 +256,8 @@ export interface SaralashState {
   supplierPurchases: SupplierPurchaseRecord[];
   /** Postavchik qarzlaridan to‘lovlar. */
   supplierDebtRepayments: SupplierDebtRepayment[];
+  /** Mijoz qarzlaridan kelgan to‘lovlar. */
+  customerDebtRepayments: CustomerDebtRepayment[];
   intakes: Intake[];
   sortedMaterials: SortedMaterial[];
   processedBatches: ProcessedBatch[];
@@ -260,6 +273,7 @@ type Action =
   | { type: 'CUSTOMER_ADD'; payload: Customer }
   | { type: 'CUSTOMER_UPDATE'; payload: Customer }
   | { type: 'CUSTOMER_DELETE'; payload: { id: string } }
+  | { type: 'CUSTOMER_DEBT_REPAYMENT_ADD'; payload: CustomerDebtRepayment }
   | { type: 'SUPPLIER_ADD'; payload: Supplier }
   | { type: 'SUPPLIER_UPDATE'; payload: Supplier }
   | { type: 'SUPPLIER_DELETE'; payload: { id: string } }
@@ -324,6 +338,7 @@ const INITIAL_STATE: SaralashState = {
   suppliers: [],
   supplierPurchases: [],
   supplierDebtRepayments: [],
+  customerDebtRepayments: [],
   intakes: [],
   sortedMaterials: [],
   processedBatches: [],
@@ -600,7 +615,25 @@ function reducer(state: SaralashState, action: Action): SaralashState {
       return {
         ...state,
         customers: state.customers.filter((c) => c.id !== action.payload.id),
+        customerDebtRepayments: state.customerDebtRepayments.filter(
+          (r) => r.customerId !== action.payload.id,
+        ),
       };
+
+    case 'CUSTOMER_DEBT_REPAYMENT_ADD': {
+      const r = action.payload;
+      const cust = state.customers.find((c) => c.id === r.customerId);
+      if (!cust || r.amount <= 1e-9) return state;
+      const pay = Math.min(r.amount, Math.max(0, cust.balanceDue));
+      if (pay <= 1e-9) return state;
+      return {
+        ...state,
+        customerDebtRepayments: [r, ...state.customerDebtRepayments],
+        customers: state.customers.map((c) =>
+          c.id === r.customerId ? { ...c, balanceDue: Math.max(0, c.balanceDue - pay) } : c,
+        ),
+      };
+    }
 
     case 'SUPPLIER_ADD':
       return { ...state, suppliers: [action.payload, ...state.suppliers] };
@@ -1158,6 +1191,11 @@ interface StoreContextValue {
   addCustomer: (input: Omit<Customer, 'id' | 'createdAt' | 'lastPurchaseDate' | 'totalSpent' | 'balanceDue'>) => Customer;
   updateCustomer: (customer: Customer) => void;
   deleteCustomer: (id: string) => void;
+  /** Mijoz qarzidan kelgan to‘lov (balanceDue kamayadi). */
+  recordCustomerDebtRepayment: (
+    customerId: string,
+    input: { amount: number; date: string; notes?: string },
+  ) => CustomerDebtRepayment | null;
   // Suppliers
   addSupplier: (input: Omit<Supplier, 'id' | 'createdAt'>) => Supplier;
   updateSupplier: (supplier: Supplier) => void;
@@ -1356,6 +1394,12 @@ function readStoredState(): SaralashState {
       ? parsed.supplierDebtRepayments
       : [];
 
+    const customerDebtRepayments = Array.isArray(
+      (parsed as Partial<SaralashState>).customerDebtRepayments,
+    )
+      ? (parsed as Partial<SaralashState>).customerDebtRepayments!
+      : [];
+
     supplierPurchases = reconcileSupplierPurchasesDebtsWithRepayments(
       supplierPurchases,
       supplierDebtRepayments,
@@ -1378,6 +1422,7 @@ function readStoredState(): SaralashState {
       suppliers,
       supplierPurchases,
       supplierDebtRepayments,
+      customerDebtRepayments,
       expenseCategories,
       expenses,
     };
@@ -1419,6 +1464,29 @@ export function SaralashProvider({ children }: { children: React.ReactNode }) {
   const deleteCustomer = useCallback<StoreContextValue['deleteCustomer']>((id) => {
     dispatch({ type: 'CUSTOMER_DELETE', payload: { id } });
   }, []);
+
+  const recordCustomerDebtRepayment = useCallback<StoreContextValue['recordCustomerDebtRepayment']>(
+    (customerId, input) => {
+      const customer = stateRef.current.customers.find((c) => c.id === customerId);
+      if (!customer) return null;
+      const amt = input.amount;
+      if (!Number.isFinite(amt) || amt <= 0) return null;
+      const due = Math.max(0, customer.balanceDue);
+      if (due <= 1e-9 || amt > due + 1e-6) return null;
+      const row: CustomerDebtRepayment = {
+        id: uid('cdr'),
+        customerId,
+        customerName: customer.fullName,
+        amount: Math.min(amt, due),
+        date: input.date,
+        notes: input.notes?.trim() || null,
+        createdAt: new Date().toISOString(),
+      };
+      dispatch({ type: 'CUSTOMER_DEBT_REPAYMENT_ADD', payload: row });
+      return row;
+    },
+    [],
+  );
 
   const addSupplier = useCallback<StoreContextValue['addSupplier']>((input) => {
     const supplier: Supplier = {
@@ -1790,6 +1858,7 @@ export function SaralashProvider({ children }: { children: React.ReactNode }) {
       addCustomer,
       updateCustomer,
       deleteCustomer,
+      recordCustomerDebtRepayment,
       addSupplier,
       updateSupplier,
       deleteSupplier,
@@ -1820,6 +1889,7 @@ export function SaralashProvider({ children }: { children: React.ReactNode }) {
       addCustomer,
       updateCustomer,
       deleteCustomer,
+      recordCustomerDebtRepayment,
       addSupplier,
       updateSupplier,
       deleteSupplier,

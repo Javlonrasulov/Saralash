@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Search, Phone, MapPin, User, History } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Phone, MapPin, User, History, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore, type Customer } from '../store/saralash-store';
 import { useApp } from '../i18n/app-context';
@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { formatDate, formatNumber } from '../utils/format';
+import { formatDate, formatMoneyInputDisplay, formatNumber, TODAY } from '../utils/format';
 import { CustomerPurchaseHistoryDialog } from '../components/CustomerPurchaseHistoryDialog';
 
 interface FormState {
@@ -46,7 +46,7 @@ interface FormState {
 const EMPTY_FORM: FormState = { fullName: '', phone: '', address: '' };
 
 export function Customers() {
-  const { state, addCustomer, updateCustomer, deleteCustomer } = useStore();
+  const { state, addCustomer, updateCustomer, deleteCustomer, recordCustomerDebtRepayment } = useStore();
   const { t } = useApp();
 
   const [search, setSearch] = useState('');
@@ -55,6 +55,10 @@ export function Customers() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [confirmDelete, setConfirmDelete] = useState<Customer | null>(null);
   const [purchaseHistoryCustomer, setPurchaseHistoryCustomer] = useState<Customer | null>(null);
+  const [debtPayCustomer, setDebtPayCustomer] = useState<Customer | null>(null);
+  const [debtPayAmount, setDebtPayAmount] = useState('');
+  const [debtPayDate, setDebtPayDate] = useState(TODAY);
+  const [debtPayNotes, setDebtPayNotes] = useState('');
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -113,6 +117,39 @@ export function Customers() {
     setConfirmDelete(null);
   };
 
+  const openDebtPay = (c: Customer) => {
+    if (c.balanceDue <= 0.01) {
+      toast.error(t.custDebtPayNoDebt);
+      return;
+    }
+    setDebtPayCustomer(c);
+    setDebtPayAmount(formatMoneyInputDisplay(String(Math.round(c.balanceDue))));
+    setDebtPayDate(TODAY);
+    setDebtPayNotes('');
+  };
+
+  const submitDebtPay = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!debtPayCustomer) return;
+    const amt = parseFloat(debtPayAmount.replace(/\s/g, '').replace(',', '.'));
+    if (!Number.isFinite(amt) || amt <= 0) {
+      toast.error(t.custDebtPayInvalid);
+      return;
+    }
+    const ok = recordCustomerDebtRepayment(debtPayCustomer.id, {
+      amount: amt,
+      date: debtPayDate,
+      notes: debtPayNotes.trim() || undefined,
+    });
+    if (!ok) {
+      toast.error(t.custDebtPayInvalid);
+      return;
+    }
+    toast.success(t.custDebtPaySuccess);
+    setDebtPayCustomer(null);
+    setDebtPayAmount('');
+  };
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -147,13 +184,15 @@ export function Customers() {
               <TableHead>{t.custAddress}</TableHead>
               <TableHead className="text-right">{t.custLastPurchase}</TableHead>
               <TableHead className="text-right">{t.custTotalSpent}</TableHead>
+              <TableHead className="text-right">{t.posDebtLabel}</TableHead>
+              <TableHead className="w-28 text-center">{t.custDebtPayment}</TableHead>
               <TableHead className="w-24 text-center">{t.custPurchaseHistory}</TableHead>
               <TableHead className="text-right">{t.actions}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableEmpty colSpan={7} message={t.noData} />
+              <TableEmpty colSpan={9} message={t.noData} />
             ) : (
               filtered.map((c) => (
                 <TableRow key={c.id}>
@@ -169,6 +208,24 @@ export function Customers() {
                   </TableCell>
                   <TableCell className="nums text-right font-semibold text-emerald-600 dark:text-emerald-400">
                     {c.totalSpent > 0 ? formatNumber(c.totalSpent) + " so'm" : '—'}
+                  </TableCell>
+                  <TableCell
+                    className={`nums text-right ${c.balanceDue > 0.01 ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}
+                  >
+                    {formatNumber(c.balanceDue)} so'm
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1 px-2"
+                      disabled={c.balanceDue <= 0.01}
+                      onClick={() => openDebtPay(c)}
+                    >
+                      <Wallet size={14} />
+                      <span className="hidden xl:inline">{t.custDebtPayment}</span>
+                    </Button>
                   </TableCell>
                   <TableCell className="text-center">
                     <Button
@@ -245,9 +302,26 @@ export function Customers() {
                       </span>
                     )}
                   </div>
+                  <div className="mt-1 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">{t.posDebtLabel}</span>
+                    <span
+                      className={`nums font-medium ${c.balanceDue > 0.01 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}
+                    >
+                      {formatNumber(c.balanceDue)} so'm
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-700">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={c.balanceDue <= 0.01}
+                  onClick={() => openDebtPay(c)}
+                >
+                  <Wallet size={14} />
+                  {t.custDebtPayment}
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setPurchaseHistoryCustomer(c)}>
                   <History size={14} />
                   {t.custPurchaseHistory}
@@ -320,6 +394,89 @@ export function Customers() {
               <Button type="submit">{t.save}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!debtPayCustomer}
+        onOpenChange={(o) => {
+          if (!o) setDebtPayCustomer(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.custDebtPayTitle}</DialogTitle>
+            <DialogDescription>
+              {debtPayCustomer && (
+                <>
+                  <span className="font-medium text-slate-800 dark:text-slate-100">
+                    {debtPayCustomer.fullName}
+                  </span>
+                  <span className="mt-2 block text-sm">
+                    {t.custDebtPayCurrent}:{' '}
+                    <span className="nums font-semibold text-amber-600 dark:text-amber-400">
+                      {formatNumber(
+                        state.customers.find((x) => x.id === debtPayCustomer.id)?.balanceDue ?? 0,
+                      )}{' '}
+                      so'm
+                    </span>
+                  </span>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {debtPayCustomer && (
+            <form onSubmit={submitDebtPay} className="space-y-4">
+              <div>
+                <Label htmlFor="debt-amt">{t.custDebtPayAmount}</Label>
+                <Input
+                  id="debt-amt"
+                  className="mt-1.5"
+                  inputMode="numeric"
+                  value={debtPayAmount}
+                  onChange={(e) => setDebtPayAmount(formatMoneyInputDisplay(e.target.value))}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="mt-1 text-[11px] text-sky-600 hover:underline dark:text-sky-400"
+                  onClick={() => {
+                    const due =
+                      state.customers.find((x) => x.id === debtPayCustomer.id)?.balanceDue ?? 0;
+                    if (due > 0.01)
+                      setDebtPayAmount(formatMoneyInputDisplay(String(Math.round(due))));
+                  }}
+                >
+                  = {t.custDebtPayCurrent}
+                </button>
+              </div>
+              <div>
+                <Label htmlFor="debt-date">{t.custDebtPayDate}</Label>
+                <Input
+                  id="debt-date"
+                  type="date"
+                  className="mt-1.5"
+                  value={debtPayDate}
+                  onChange={(e) => setDebtPayDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="debt-notes">{t.custDebtPayNotes}</Label>
+                <Input
+                  id="debt-notes"
+                  className="mt-1.5"
+                  value={debtPayNotes}
+                  onChange={(e) => setDebtPayNotes(e.target.value)}
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDebtPayCustomer(null)}>
+                  {t.cancel}
+                </Button>
+                <Button type="submit">{t.custDebtPaySubmit}</Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
 

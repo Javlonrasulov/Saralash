@@ -23,6 +23,7 @@ const INITIAL_STATE = {
     suppliers: [],
     supplierPurchases: [],
     supplierDebtRepayments: [],
+    customerDebtRepayments: [],
     intakes: [],
     sortedMaterials: [],
     processedBatches: [],
@@ -267,7 +268,22 @@ function reducer(state, action) {
             return {
                 ...state,
                 customers: state.customers.filter((c) => c.id !== action.payload.id),
+                customerDebtRepayments: state.customerDebtRepayments.filter((r) => r.customerId !== action.payload.id),
             };
+        case 'CUSTOMER_DEBT_REPAYMENT_ADD': {
+            const r = action.payload;
+            const cust = state.customers.find((c) => c.id === r.customerId);
+            if (!cust || r.amount <= 1e-9)
+                return state;
+            const pay = Math.min(r.amount, Math.max(0, cust.balanceDue));
+            if (pay <= 1e-9)
+                return state;
+            return {
+                ...state,
+                customerDebtRepayments: [r, ...state.customerDebtRepayments],
+                customers: state.customers.map((c) => c.id === r.customerId ? { ...c, balanceDue: Math.max(0, c.balanceDue - pay) } : c),
+            };
+        }
         case 'SUPPLIER_ADD':
             return { ...state, suppliers: [action.payload, ...state.suppliers] };
         case 'SUPPLIER_UPDATE':
@@ -832,6 +848,9 @@ function readStoredState() {
         const supplierDebtRepayments = Array.isArray(parsed.supplierDebtRepayments)
             ? parsed.supplierDebtRepayments
             : [];
+        const customerDebtRepayments = Array.isArray(parsed.customerDebtRepayments)
+            ? parsed.customerDebtRepayments
+            : [];
         supplierPurchases = reconcileSupplierPurchasesDebtsWithRepayments(supplierPurchases, supplierDebtRepayments);
         supplierPurchases = syncAllSupplierPurchasesPaidFromTotals(supplierPurchases);
         const hasExpenseCategoryStorage = parsed !== null && typeof parsed === 'object' && 'expenseCategories' in parsed;
@@ -848,6 +867,7 @@ function readStoredState() {
             suppliers,
             supplierPurchases,
             supplierDebtRepayments,
+            customerDebtRepayments,
             expenseCategories,
             expenses,
         };
@@ -885,6 +905,28 @@ export function SaralashProvider({ children }) {
     }, []);
     const deleteCustomer = useCallback((id) => {
         dispatch({ type: 'CUSTOMER_DELETE', payload: { id } });
+    }, []);
+    const recordCustomerDebtRepayment = useCallback((customerId, input) => {
+        const customer = stateRef.current.customers.find((c) => c.id === customerId);
+        if (!customer)
+            return null;
+        const amt = input.amount;
+        if (!Number.isFinite(amt) || amt <= 0)
+            return null;
+        const due = Math.max(0, customer.balanceDue);
+        if (due <= 1e-9 || amt > due + 1e-6)
+            return null;
+        const row = {
+            id: uid('cdr'),
+            customerId,
+            customerName: customer.fullName,
+            amount: Math.min(amt, due),
+            date: input.date,
+            notes: input.notes?.trim() || null,
+            createdAt: new Date().toISOString(),
+        };
+        dispatch({ type: 'CUSTOMER_DEBT_REPAYMENT_ADD', payload: row });
+        return row;
     }, []);
     const addSupplier = useCallback((input) => {
         const supplier = {
@@ -1021,13 +1063,13 @@ export function SaralashProvider({ children }) {
         const supplier = stateRef.current.suppliers.find((s) => s.id === supplierId);
         if (!supplier)
             return null;
-        const parent = stateRef.current.warehouseItems.find((w) => w.id === input.parentWarehouseItemId);
-        if (!parent || parent.parentWarehouseId)
+        const item = stateRef.current.warehouseItems.find((w) => w.id === input.parentWarehouseItemId);
+        if (!item)
             return null;
         let qty = input.quantity;
         if (!Number.isFinite(qty) || qty <= 0)
             return null;
-        if (parent.unit === 'pcs') {
+        if (item.unit === 'pcs') {
             qty = Math.floor(qty);
             if (qty < 1)
                 return null;
@@ -1050,11 +1092,11 @@ export function SaralashProvider({ children }) {
         }
         const debt = lineTotal != null && paid != null ? Math.max(0, lineTotal - paid) : null;
         const onCreditFlag = Boolean(input.onCredit && lineTotal != null && debt != null && debt > 1e-6);
-        const newQty = parent.currentQty + qty;
-        const newInitial = parent.initialQty + qty;
-        const mergedNotes = [parent.notes?.trim(), input.notes?.trim()].filter(Boolean).join(' | ') || undefined;
+        const newQty = item.currentQty + qty;
+        const newInitial = item.initialQty + qty;
+        const mergedNotes = [item.notes?.trim(), input.notes?.trim()].filter(Boolean).join(' | ') || undefined;
         const updated = {
-            ...parent,
+            ...item,
             currentQty: newQty,
             initialQty: newInitial,
             incomeDate: input.incomeDate,
@@ -1062,18 +1104,24 @@ export function SaralashProvider({ children }) {
             supplierId: supplier.id,
             supplierName: supplier.fullName,
             notes: mergedNotes,
-            status: newQty > 0 ? 'IN_STOCK' : parent.status,
+            status: newQty > 0 ? 'IN_STOCK' : item.status,
         };
         dispatch({ type: 'WAREHOUSE_UPDATE', payload: updated });
+        const parentRow = item.parentWarehouseId
+            ? stateRef.current.warehouseItems.find((w) => w.id === item.parentWarehouseId)
+            : null;
+        const historyProductName = parentRow
+            ? `${item.productName} (${parentRow.productName})`
+            : item.productName;
         const record = {
             id: uid('sph'),
             supplierId: supplier.id,
             supplierName: supplier.fullName,
-            warehouseItemId: parent.id,
+            warehouseItemId: item.id,
             incomeDate: input.incomeDate,
-            productName: parent.productName,
-            category: parent.category,
-            unit: parent.unit,
+            productName: historyProductName,
+            category: item.category,
+            unit: item.unit,
             quantity: qty,
             pricePerUnit: hasPositive ? p : null,
             totalAmount: lineTotal,
@@ -1219,6 +1267,7 @@ export function SaralashProvider({ children }) {
         addCustomer,
         updateCustomer,
         deleteCustomer,
+        recordCustomerDebtRepayment,
         addSupplier,
         updateSupplier,
         deleteSupplier,
@@ -1248,6 +1297,7 @@ export function SaralashProvider({ children }) {
         addCustomer,
         updateCustomer,
         deleteCustomer,
+        recordCustomerDebtRepayment,
         addSupplier,
         updateSupplier,
         deleteSupplier,

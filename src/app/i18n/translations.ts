@@ -176,6 +176,17 @@ export interface T {
   custPurchaseHistory: string;
   custHistoryProducts: string;
   custNoPurchaseHistory: string;
+  /** Mijoz qarzidan to‘lov qayd etish */
+  custDebtPayment: string;
+  custDebtPayTitle: string;
+  custDebtPayCurrent: string;
+  custDebtPayAmount: string;
+  custDebtPayDate: string;
+  custDebtPayNotes: string;
+  custDebtPaySubmit: string;
+  custDebtPaySuccess: string;
+  custDebtPayInvalid: string;
+  custDebtPayNoDebt: string;
 
   // Suppliers (postavchiklar)
   suppTitle: string;
@@ -650,6 +661,16 @@ const uz_latin: T = {
   custPurchaseHistory: 'Sotuv tarixi',
   custHistoryProducts: 'Mahsulotlar',
   custNoPurchaseHistory: 'Bu klientga bogʻlangan sotuv yozuvi yoʻq',
+  custDebtPayment: 'Qarz to‘lovi',
+  custDebtPayTitle: 'Qarzdan to‘lov',
+  custDebtPayCurrent: 'Joriy qarz',
+  custDebtPayAmount: 'Tushgan summa (so‘m)',
+  custDebtPayDate: 'Sana',
+  custDebtPayNotes: 'Izoh (ixtiyoriy)',
+  custDebtPaySubmit: 'Saqlash',
+  custDebtPaySuccess: 'To‘lov qayd etildi',
+  custDebtPayInvalid: 'Summani tekshiring (0 dan katta, qoldiqdan oshmasin)',
+  custDebtPayNoDebt: 'Bu mijozda qarz yo‘q',
 
   suppTitle: 'Postavchiklar',
   suppIntro:
@@ -1126,6 +1147,16 @@ const uz_cyrillic: T = {
   custPurchaseHistory: 'Сотув тарихи',
   custHistoryProducts: 'Маҳсулотлар',
   custNoPurchaseHistory: 'Бу клиентга боғланган сотув ёзуви йўқ',
+  custDebtPayment: 'Қарз тўлови',
+  custDebtPayTitle: 'Қарздан тўлов',
+  custDebtPayCurrent: 'Жорий қарз',
+  custDebtPayAmount: 'Тушган сумма (сўм)',
+  custDebtPayDate: 'Сана',
+  custDebtPayNotes: 'Изоҳ (ихтиёрий)',
+  custDebtPaySubmit: 'Сақлаш',
+  custDebtPaySuccess: 'Тўлов қайд этилди',
+  custDebtPayInvalid: 'Суммани текширинг (0 дан катта, қолдиқдан ошмасин)',
+  custDebtPayNoDebt: 'Бу мижозда қарз йўқ',
 
   suppTitle: 'Поставчиклар',
   suppIntro:
@@ -1603,6 +1634,16 @@ const ru: T = {
   custPurchaseHistory: 'История продаж',
   custHistoryProducts: 'Товары',
   custNoPurchaseHistory: 'Нет продаж, привязанных к этому клиенту',
+  custDebtPayment: 'Оплата долга',
+  custDebtPayTitle: 'Погашение долга',
+  custDebtPayCurrent: 'Текущий долг',
+  custDebtPayAmount: 'Сумма поступления (сум)',
+  custDebtPayDate: 'Дата',
+  custDebtPayNotes: 'Примечание (необязательно)',
+  custDebtPaySubmit: 'Сохранить',
+  custDebtPaySuccess: 'Оплата записана',
+  custDebtPayInvalid: 'Проверьте сумму (больше 0, не больше остатка)',
+  custDebtPayNoDebt: 'У этого клиента нет долга',
 
   suppTitle: 'Поставщики',
   suppIntro:
