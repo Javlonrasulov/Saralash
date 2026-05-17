@@ -8,10 +8,12 @@ const ADMIN_ROUTES = ['dashboard', 'warehouse', 'sales', 'customers', 'suppliers
 async function main() {
   // Default admin
   const passwordHash = await bcrypt.hash('admin123', 10);
+  const resetAdminPassword = process.env.SEED_RESET_ADMIN_PASSWORD === '1';
   await prisma.user.upsert({
     where: { login: 'admin' },
     update: {
       allowedRoutes: [...ADMIN_ROUTES],
+      ...(resetAdminPassword ? { passwordHash } : {}),
     },
     create: {
       login: 'admin',

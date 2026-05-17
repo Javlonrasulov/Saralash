@@ -90,7 +90,11 @@ deploy_env() {
   npm ci
   npx prisma generate
   npx prisma db push --accept-data-loss
-  npm run prisma:seed || true
+  if [[ "$root" == "$DEV_ROOT" ]]; then
+    SEED_RESET_ADMIN_PASSWORD=1 npm run prisma:seed || true
+  else
+    npm run prisma:seed || true
+  fi
   npm run build
 
   cd "$root"

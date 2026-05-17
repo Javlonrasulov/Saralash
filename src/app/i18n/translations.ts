@@ -386,7 +386,6 @@ export interface T {
   /** Backend 5xx yoki proxy xatosi — login/parol bilan bog‘liq emas */
   authServerError: string;
   authLogout: string;
-  authBackendHint: string;
   authProfileTitle: string;
   authProfileDesc: string;
   authCurrentPassword: string;
@@ -868,8 +867,6 @@ const uz_latin: T = {
   authServerError:
     'Server xatosi (masalan PostgreSQL yo‘q yoki DATABASE_URL noto‘g‘ri). Backend logini tekshiring. Boshqa login bilan 500 bo‘lsa, bu xabar chiqadi.',
   authLogout: 'Chiqish',
-  authBackendHint:
-    'Backend yoqilsa: admin / admin123 (seed). Server ishlamasa, tarmoq xatosi bo‘lsa shu login demo rejimida ochiladi.',
   authProfileTitle: 'Login va parol',
   authProfileDesc: 'Joriy parolingizni kiriting. Yangi login yoki parolni ixtiyoriy yangilang.',
   authCurrentPassword: 'Joriy parol',
@@ -1355,8 +1352,6 @@ const uz_cyrillic: T = {
   authServerError:
     'Сервер хатоси (PostgreSQL ёки DATABASE_URL). Backend логини текширинг.',
   authLogout: 'Чиқиш',
-  authBackendHint:
-    'Backend ёқилса: admin / admin123 (seed). Сервер ишламаса, тармоқ хатоси бўлса шу логин демо режимида очади.',
   authProfileTitle: 'Логин ва парол',
   authProfileDesc: 'Жорий паролингизни киритинг. Янги логин ёки паролни ихтиёрий янгиланг.',
   authCurrentPassword: 'Жорий парол',
@@ -1841,8 +1836,6 @@ const ru: T = {
   authServerError:
     'Ошибка сервера (БД или DATABASE_URL). Проверьте логи backend.',
   authLogout: 'Выйти',
-  authBackendHint:
-    'С backend: admin / admin123 (seed). Если сервер недоступен, эта пара логин/пароль откроет демо-режим.',
   authProfileTitle: 'Логин и пароль',
   authProfileDesc: 'Введите текущий пароль. Новый логин или пароль — по желанию.',
   authCurrentPassword: 'Текущий пароль',

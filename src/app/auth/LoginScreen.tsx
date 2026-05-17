@@ -97,8 +97,6 @@ export function LoginScreen() {
             <LogIn size={16} />
             {submitting ? t.loading : t.authSubmit}
           </Button>
-
-          <p className="pt-2 text-center text-xs text-slate-400 dark:text-slate-500">{t.authBackendHint}</p>
         </form>
       </div>
     </div>
