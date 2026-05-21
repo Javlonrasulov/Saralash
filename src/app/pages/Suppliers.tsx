@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   Pencil,
-  Trash2,
   Search,
   Phone,
   MapPin,
@@ -10,14 +9,18 @@ import {
   ShoppingBag,
   History,
   Wallet,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useStore,
   type Supplier,
+  type SupplierPurchaseRecord,
+  type SupplierPurchaseHistoryGroup,
   type WarehouseItem,
   getSupplierRemainingDebt,
   getOrphanSupplierDebtIncurred,
+  groupSupplierPurchasesForHistory,
 } from '../store/saralash-store';
 import { useApp } from '../i18n/app-context';
 import { Card } from '../components/ui/card';
@@ -61,7 +64,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
 import { categoryLabel, categoryMeta } from '../utils/category';
-import { formatDate, formatNumber, TODAY } from '../utils/format';
+import { formatDate, formatNumber, formatQuantity, TODAY, uid } from '../utils/format';
+import { SupplierPurchaseEditDialog } from '../components/SupplierPurchaseEditDialog';
 
 interface SupplierFormState {
   fullName: string;
@@ -77,26 +81,33 @@ const EMPTY_SUPPLIER: SupplierFormState = {
   notes: '',
 };
 
+interface PurchaseDraftLine {
+  key: string;
+  warehouseItemId: string;
+  quantity: string;
+  pricePerUnit: string;
+}
+
 interface PurchaseFormState {
   supplierId: string;
-  parentWarehouseItemId: string;
-  quantity: string;
   incomeDate: string;
-  pricePerUnit: string;
   paidAmount: string;
   onCredit: boolean;
   notes: string;
+  lines: PurchaseDraftLine[];
+}
+
+function newPurchaseLine(warehouseItemId = '', pricePerUnit = ''): PurchaseDraftLine {
+  return { key: uid('spl'), warehouseItemId, quantity: '', pricePerUnit };
 }
 
 const EMPTY_PURCHASE: PurchaseFormState = {
   supplierId: '',
-  parentWarehouseItemId: '',
-  quantity: '',
   incomeDate: TODAY,
-  pricePerUnit: '',
   paidAmount: '',
   onCredit: false,
   notes: '',
+  lines: [newPurchaseLine()],
 };
 
 export function Suppliers() {
@@ -105,7 +116,7 @@ export function Suppliers() {
     addSupplier,
     updateSupplier,
     deleteSupplier,
-    purchaseFromSupplier,
+    purchaseLinesFromSupplier,
     recordSupplierDebtRepayment,
   } = useStore();
   const { t } = useApp();
@@ -118,10 +129,13 @@ export function Suppliers() {
 
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [purchaseForm, setPurchaseForm] = useState<PurchaseFormState>(EMPTY_PURCHASE);
+  /** Qaysi qator kengaytirilgan (qolganlari qisqa qator). */
+  const [purchaseEditingKey, setPurchaseEditingKey] = useState('');
 
   const [mainTab, setMainTab] = useState<'list' | 'history' | 'debts'>('list');
   const [historySearch, setHistorySearch] = useState('');
   const [historySupplierId, setHistorySupplierId] = useState<string>('__all');
+  const [historyEditBatch, setHistoryEditBatch] = useState<SupplierPurchaseHistoryGroup | null>(null);
 
   const [debtRepayOpen, setDebtRepayOpen] = useState(false);
   const [debtRepaySupplierId, setDebtRepaySupplierId] = useState('');
@@ -158,6 +172,11 @@ export function Suppliers() {
       );
   }, [state.supplierPurchases, supplierDetail]);
 
+  const supplierDetailPurchaseGroups = useMemo(
+    () => groupSupplierPurchasesForHistory(supplierDetailPurchases),
+    [supplierDetailPurchases],
+  );
+
   const debtRepayRemaining = useMemo(() => {
     if (!debtRepaySupplierId) return 0;
     return getSupplierRemainingDebt(state, debtRepaySupplierId);
@@ -188,11 +207,10 @@ export function Suppliers() {
     return out;
   }, [state.warehouseItems]);
 
-  const warehousePurchaseLabel = (w: WarehouseItem) => {
-    const qty = `${formatNumber(w.currentQty)} ${w.unit}`;
-    if (!w.parentWarehouseId) return `${w.productName} (${qty})`;
+  const warehouseProductTitle = (w: WarehouseItem) => {
+    if (!w.parentWarehouseId) return w.productName;
     const parent = state.warehouseItems.find((x) => x.id === w.parentWarehouseId);
-    return `└ ${w.productName} · ${parent?.productName ?? '—'} (${qty})`;
+    return `└ ${w.productName} · ${parent?.productName ?? '—'}`;
   };
 
   const prefPurchasePrice = (w: WarehouseItem | undefined) => {
@@ -231,46 +249,127 @@ export function Suppliers() {
     [state.suppliers, purchaseForm.supplierId],
   );
 
-  const purchaseSelectedParent = useMemo(
-    () => state.warehouseItems.find((w) => w.id === purchaseForm.parentWarehouseItemId),
-    [state.warehouseItems, purchaseForm.parentWarehouseItemId],
-  );
+  const parseDraftLine = (line: PurchaseDraftLine) => {
+    const w = state.warehouseItems.find((x) => x.id === line.warehouseItemId);
+    const qtyRaw = line.quantity.trim().replace(',', '.');
+    const qty = qtyRaw ? parseFloat(qtyRaw) : NaN;
+    const priceRaw = line.pricePerUnit.trim().replace(',', '.');
+    const price = priceRaw ? parseFloat(priceRaw) : null;
+    const priceNum =
+      price != null && Number.isFinite(price) && price > 0 ? price : null;
+    const qtyNum = Number.isFinite(qty) && qty > 0 ? qty : null;
+    const lineTotal =
+      priceNum != null && qtyNum != null ? priceNum * qtyNum : null;
+    return { w, qtyNum, priceNum, lineTotal };
+  };
 
-  const purchaseQtyNum = useMemo(() => {
-    const raw = purchaseForm.quantity.trim().replace(',', '.');
-    if (!raw) return null;
-    const v = parseFloat(raw);
-    return Number.isFinite(v) && v > 0 ? v : null;
-  }, [purchaseForm.quantity]);
+  const sessionQtyByWarehouseId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const line of purchaseForm.lines) {
+      const { w, qtyNum } = parseDraftLine(line);
+      if (!w || qtyNum == null) continue;
+      map.set(w.id, (map.get(w.id) ?? 0) + qtyNum);
+    }
+    return map;
+  }, [purchaseForm.lines, state.warehouseItems]);
 
-  const purchasePriceNum = useMemo(() => {
-    const raw = purchaseForm.pricePerUnit.trim().replace(',', '.');
-    if (!raw) return null;
-    const v = parseFloat(raw);
-    return Number.isFinite(v) && v > 0 ? v : null;
-  }, [purchaseForm.pricePerUnit]);
+  const warehouseSessionLabel = (w: WarehouseItem) => {
+    const q = sessionQtyByWarehouseId.get(w.id) ?? 0;
+    const u = w.unit === 'kg' ? 'kg' : t.unitPcs;
+    return `${warehouseProductTitle(w)} (${formatQuantity(q, w.unit)} ${u})`;
+  };
 
-  const purchaseLineTotal = useMemo(() => {
-    if (purchasePriceNum == null || purchaseQtyNum == null) return null;
-    return purchasePriceNum * purchaseQtyNum;
-  }, [purchasePriceNum, purchaseQtyNum]);
+  const purchaseOrderTotal = useMemo(() => {
+    let sum = 0;
+    let any = false;
+    for (const line of purchaseForm.lines) {
+      const { lineTotal } = parseDraftLine(line);
+      if (lineTotal != null) {
+        sum += lineTotal;
+        any = true;
+      }
+    }
+    return any ? sum : null;
+  }, [purchaseForm.lines, state.warehouseItems]);
+
+  const purchaseByProductSummary = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; label: string; unit: 'kg' | 'pcs'; qty: number; amount: number; hasPrice: boolean }
+    >();
+    for (const line of purchaseForm.lines) {
+      const { w, qtyNum, lineTotal } = parseDraftLine(line);
+      if (!w || qtyNum == null) continue;
+      const prev = map.get(w.id);
+      const amount = (prev?.amount ?? 0) + (lineTotal ?? 0);
+      map.set(w.id, {
+        id: w.id,
+        label: warehouseProductTitle(w),
+        unit: w.unit,
+        qty: (prev?.qty ?? 0) + qtyNum,
+        amount,
+        hasPrice: lineTotal != null || (prev?.hasPrice ?? false),
+      });
+    }
+    return [...map.values()].filter((g) => g.qty > 0);
+  }, [purchaseForm.lines, state.warehouseItems]);
 
   const debtPreviewSo = useMemo(() => {
-    if (purchaseLineTotal == null) return null;
+    if (purchaseOrderTotal == null) return null;
     const payRaw = purchaseForm.paidAmount.trim().replace(',', '.');
     const paid =
       payRaw === '' ? 0 : Number.isFinite(parseFloat(payRaw)) ? Math.max(0, parseFloat(payRaw)) : null;
     if (paid == null) return null;
-    return Math.max(0, purchaseLineTotal - paid);
-  }, [purchaseLineTotal, purchaseForm.paidAmount]);
+    return Math.max(0, purchaseOrderTotal - paid);
+  }, [purchaseOrderTotal, purchaseForm.paidAmount]);
 
   useEffect(() => {
-    if (!purchaseOpen || purchaseForm.onCredit || purchaseLineTotal == null) return;
-    const next = String(Math.round(purchaseLineTotal * 100) / 100);
+    if (!purchaseOpen || purchaseForm.onCredit || purchaseOrderTotal == null) return;
+    const next = String(Math.round(purchaseOrderTotal * 100) / 100);
     setPurchaseForm((f) => (f.paidAmount === next ? f : { ...f, paidAmount: next }));
-  }, [purchaseOpen, purchaseForm.onCredit, purchaseLineTotal]);
+  }, [purchaseOpen, purchaseForm.onCredit, purchaseOrderTotal]);
 
-  const filteredHistory = useMemo(() => {
+  const commitPurchaseLineAndAddNext = () => {
+    const editing = purchaseForm.lines.find((l) => l.key === purchaseEditingKey);
+    if (!editing) return;
+    const { w, qtyNum } = parseDraftLine(editing);
+    if (!editing.warehouseItemId) {
+      toast.error(t.required + ': ' + t.suppPurchasePickParent);
+      return;
+    }
+    if (qtyNum == null) {
+      toast.error(t.required + ': ' + t.whQuantity);
+      return;
+    }
+    if (w?.unit === 'pcs' && Math.abs(qtyNum - Math.floor(qtyNum)) > 1e-9) {
+      toast.error(t.suppPurchasePcsWhole);
+      return;
+    }
+    const item = state.warehouseItems.find((x) => x.id === editing.warehouseItemId);
+    const next = newPurchaseLine(editing.warehouseItemId, item ? prefPurchasePrice(item) : '');
+    setPurchaseForm((f) => ({ ...f, lines: [...f.lines, next] }));
+    setPurchaseEditingKey(next.key);
+  };
+
+  const updatePurchaseLine = (key: string, patch: Partial<PurchaseDraftLine>) => {
+    setPurchaseForm((f) => ({
+      ...f,
+      lines: f.lines.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+    }));
+  };
+
+  const removePurchaseLine = (key: string) => {
+    setPurchaseForm((f) => {
+      const next = f.lines.filter((l) => l.key !== key);
+      const lines = next.length ? next : [newPurchaseLine()];
+      if (purchaseEditingKey === key) {
+        setPurchaseEditingKey(lines[lines.length - 1].key);
+      }
+      return { ...f, lines };
+    });
+  };
+
+  const filteredHistoryRows = useMemo(() => {
     let rows = state.supplierPurchases;
     if (historySupplierId !== '__all') {
       rows = rows.filter((p) => p.supplierId === historySupplierId);
@@ -286,6 +385,35 @@ export function Suppliers() {
     }
     return rows;
   }, [state.supplierPurchases, historySearch, historySupplierId]);
+
+  const historyGroups = useMemo(
+    () => groupSupplierPurchasesForHistory(filteredHistoryRows),
+    [filteredHistoryRows],
+  );
+
+  const summarizeBatchProducts = (lines: SupplierPurchaseRecord[]) => {
+    const map = new Map<string, { qty: number; unit: 'kg' | 'pcs' }>();
+    for (const l of lines) {
+      const prev = map.get(l.productName);
+      map.set(l.productName, {
+        qty: (prev?.qty ?? 0) + l.quantity,
+        unit: l.unit,
+      });
+    }
+    return [...map.entries()]
+      .map(([name, { qty, unit }]) => {
+        const u = unit === 'kg' ? 'kg' : t.unitPcs;
+        return `${name} ${formatQuantity(qty, unit)} ${u}`;
+      })
+      .join(' · ');
+  };
+
+  const batchMoneyTotals = (g: SupplierPurchaseHistoryGroup) => {
+    const totalAmount = g.lines.reduce((s, l) => s + (l.totalAmount ?? 0), 0);
+    const paid = g.lines.reduce((s, l) => s + (l.paidAmount ?? 0), 0);
+    const debt = g.lines.reduce((s, l) => s + (l.supplierDebtAmount ?? 0), 0);
+    return { totalAmount, paid, debt };
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -305,7 +433,13 @@ export function Suppliers() {
   };
 
   const openPurchaseDialog = () => {
-    setPurchaseForm(EMPTY_PURCHASE);
+    const first = warehousePurchaseOptions[0];
+    const line = newPurchaseLine(first?.id ?? '', first ? prefPurchasePrice(first) : '');
+    setPurchaseForm({
+      ...EMPTY_PURCHASE,
+      lines: [line],
+    });
+    setPurchaseEditingKey(line.key);
     setPurchaseOpen(true);
   };
 
@@ -345,39 +479,43 @@ export function Suppliers() {
       toast.error(t.required + ': ' + t.suppPurchasePickSupplier);
       return;
     }
-    if (!purchaseForm.parentWarehouseItemId) {
-      toast.error(t.required + ': ' + t.suppPurchasePickParent);
-      return;
-    }
-    const warehouseItem = state.warehouseItems.find((w) => w.id === purchaseForm.parentWarehouseItemId);
-    if (!warehouseItem) {
+
+    const resolvedLines: Array<{
+      warehouseItemId: string;
+      quantity: number;
+      purchasePricePerUnit: number | null;
+      w: WarehouseItem;
+    }> = [];
+
+    const linesToSubmit = purchaseForm.lines.filter((line) => {
+      const { qtyNum } = parseDraftLine(line);
+      return line.warehouseItemId && qtyNum != null;
+    });
+    if (!linesToSubmit.length) {
       toast.error(t.required);
       return;
     }
-    const qty = parseFloat(purchaseForm.quantity.replace(',', '.'));
-    if (!Number.isFinite(qty) || qty <= 0) {
-      toast.error(t.required);
-      return;
-    }
-    const priceRaw = purchaseForm.pricePerUnit.trim().replace(',', '.');
-    let purchasePricePerUnit: number | null;
-    if (!priceRaw) {
-      purchasePricePerUnit = null;
-    } else {
-      const v = parseFloat(priceRaw);
-      if (!Number.isFinite(v) || v <= 0) {
-        toast.error(t.whValidateOptionalPrice);
+
+    for (const line of linesToSubmit) {
+      const { w, qtyNum, priceNum } = parseDraftLine(line);
+      if (!w || qtyNum == null) {
+        toast.error(t.required);
         return;
       }
-      purchasePricePerUnit = v;
+      if (w.unit === 'pcs' && Math.abs(qtyNum - Math.floor(qtyNum)) > 1e-9) {
+        toast.error(t.suppPurchasePcsWhole);
+        return;
+      }
+      resolvedLines.push({
+        warehouseItemId: line.warehouseItemId,
+        quantity: qtyNum,
+        purchasePricePerUnit: priceNum,
+        w,
+      });
     }
-    const lineTotal =
-      purchasePricePerUnit != null && Number.isFinite(purchasePricePerUnit) && purchasePricePerUnit > 0
-        ? purchasePricePerUnit * qty
-        : null;
 
     let paidNum: number | null = null;
-    if (lineTotal != null) {
+    if (purchaseOrderTotal != null) {
       const payRaw = purchaseForm.paidAmount.trim().replace(',', '.');
       if (purchaseForm.onCredit && payRaw === '') {
         paidNum = 0;
@@ -391,38 +529,31 @@ export function Suppliers() {
           return;
         }
       }
-      const eps = 1e-4 * Math.max(1, lineTotal);
+      const eps = 1e-4 * Math.max(1, purchaseOrderTotal);
       if (!purchaseForm.onCredit) {
-        if (Math.abs(paidNum - lineTotal) > eps) {
+        if (Math.abs(paidNum - purchaseOrderTotal) > eps) {
           toast.error(t.suppPaidMustEqualTotal);
           return;
         }
-      } else if (paidNum > lineTotal + 1e-6) {
+      } else if (paidNum > purchaseOrderTotal + 1e-6) {
         toast.error(t.suppPaidExceedsTotal);
         return;
       }
     }
 
-    const created = purchaseFromSupplier(supplier.id, {
-      parentWarehouseItemId: purchaseForm.parentWarehouseItemId,
-      quantity: qty,
+    const ok = purchaseLinesFromSupplier(supplier.id, {
       incomeDate: purchaseForm.incomeDate,
       notes: purchaseForm.notes.trim() || undefined,
-      purchasePricePerUnit,
-      paidAmount: lineTotal != null ? paidNum! : undefined,
       onCredit: purchaseForm.onCredit,
+      paidAmount: purchaseOrderTotal != null ? paidNum! : undefined,
+      lines: resolvedLines.map((r) => ({
+        warehouseItemId: r.warehouseItemId,
+        quantity: r.quantity,
+        purchasePricePerUnit: r.purchasePricePerUnit,
+      })),
     });
-    if (!created) {
-      if (
-        warehouseItem.unit === 'pcs' &&
-        Number.isFinite(qty) &&
-        qty > 0 &&
-        Math.abs(qty - Math.floor(qty)) > 1e-9
-      ) {
-        toast.error(t.suppPurchasePcsWhole);
-      } else {
-        toast.error(t.required);
-      }
+    if (!ok) {
+      toast.error(t.required);
       return;
     }
     toast.success(t.suppPurchaseSuccess);
@@ -499,7 +630,7 @@ export function Suppliers() {
             <History size={14} />
             {t.suppTabHistory}
             <Badge variant="muted" className="ml-0.5 text-[10px]">
-              {state.supplierPurchases.length}
+              {historyGroups.length}
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="debts" className="flex-1 gap-1.5 sm:flex-none">
@@ -692,54 +823,58 @@ export function Suppliers() {
                 <TableRow>
                   <TableHead>{t.suppHistoryColDate}</TableHead>
                   <TableHead>{t.suppHistoryColSupplier}</TableHead>
-                  <TableHead>{t.suppHistoryColProduct}</TableHead>
-                  <TableHead>{t.suppHistoryColCategory}</TableHead>
-                  <TableHead className="text-right">{t.suppHistoryColQty}</TableHead>
+                  <TableHead>{t.suppHistoryColProducts}</TableHead>
                   <TableHead className="text-right">{t.suppHistoryColTotal}</TableHead>
                   <TableHead className="text-right">{t.suppHistoryColPaid}</TableHead>
                   <TableHead className="text-right">{t.suppHistoryColDebt}</TableHead>
+                  <TableHead className="w-[5.5rem] text-right">{t.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredHistory.length === 0 ? (
-                  <TableEmpty colSpan={8} message={t.suppHistoryNoData} />
+                {historyGroups.length === 0 ? (
+                  <TableEmpty colSpan={7} message={t.suppHistoryNoData} />
                 ) : (
-                  filteredHistory.map((row) => {
-                    const meta = categoryMeta(row.category);
+                  historyGroups.map((g) => {
+                    const { totalAmount, paid, debt } = batchMoneyTotals(g);
                     return (
-                      <TableRow key={row.id}>
+                      <TableRow key={g.batchId}>
                         <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
-                          {formatDate(row.incomeDate)}
+                          {formatDate(g.incomeDate)}
                         </TableCell>
                         <TableCell className="max-w-[10rem]">
-                          <span className="font-medium text-slate-800 dark:text-white">{row.supplierName}</span>
-                          {!row.supplierId && (
+                          <span className="font-medium text-slate-800 dark:text-white">{g.supplierName}</span>
+                          {!g.supplierId && (
                             <span className="ml-1 text-[10px] text-slate-400">({t.suppHistoryDeletedSupplier})</span>
                           )}
                         </TableCell>
-                        <TableCell className="font-medium text-slate-800 dark:text-white">
-                          {row.productName}
+                        <TableCell className="max-w-[22rem]">
+                          <p className="text-sm font-medium leading-snug text-slate-800 dark:text-white">
+                            {summarizeBatchProducts(g.lines)}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-slate-400">
+                            {g.lines.length} {t.suppHistoryProductCount}
+                          </p>
                         </TableCell>
-                        <TableCell>
-                          <Badge className={meta.badge}>
-                            {meta.emoji} {categoryLabel(row.category, t)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className={`nums text-right font-semibold ${meta.text}`}>
-                          {formatNumber(row.quantity)} {row.unit}
-                        </TableCell>
-                        <TableCell className="nums text-right text-slate-600 dark:text-slate-300">
-                          {row.totalAmount != null && row.totalAmount > 0
-                            ? `${formatNumber(row.totalAmount)} so'm`
-                            : '—'}
+                        <TableCell className="nums text-right font-semibold text-slate-800 dark:text-white">
+                          {totalAmount > 0 ? `${formatNumber(totalAmount)} so'm` : '—'}
                         </TableCell>
                         <TableCell className="nums text-right text-slate-600 dark:text-slate-300">
-                          {row.paidAmount != null ? `${formatNumber(row.paidAmount)} so'm` : '—'}
+                          {paid > 0 || totalAmount > 0 ? `${formatNumber(paid)} so'm` : '—'}
                         </TableCell>
                         <TableCell className="nums text-right text-amber-700 dark:text-amber-300">
-                          {row.supplierDebtAmount != null && row.supplierDebtAmount > 1e-6
-                            ? `${formatNumber(row.supplierDebtAmount)} so'm`
-                            : '—'}
+                          {debt > 1e-6 ? `${formatNumber(debt)} so'm` : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-sky-600"
+                            aria-label={t.suppEditPurchaseTitle}
+                            onClick={() => setHistoryEditBatch(g)}
+                          >
+                            <Pencil size={15} />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );
@@ -750,57 +885,52 @@ export function Suppliers() {
           </Card>
 
           <div className="space-y-3 md:hidden">
-            {filteredHistory.length === 0 ? (
+            {historyGroups.length === 0 ? (
               <Card className="p-8 text-center text-sm text-slate-400">{t.suppHistoryNoData}</Card>
             ) : (
-              filteredHistory.map((row) => {
-                const meta = categoryMeta(row.category);
+              historyGroups.map((g) => {
+                const { totalAmount, paid, debt } = batchMoneyTotals(g);
                 return (
-                  <Card key={row.id} className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${meta.iconBg} text-lg`}
+                  <Card key={g.batchId} className="p-4">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-slate-800 dark:text-white">{g.supplierName}</p>
+                        <p className="text-xs text-slate-500">{formatDate(g.incomeDate)}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-slate-500"
+                        aria-label={t.suppEditPurchaseTitle}
+                        onClick={() => setHistoryEditBatch(g)}
                       >
-                        <span>{meta.emoji}</span>
+                        <Pencil size={15} />
+                      </Button>
+                    </div>
+                    <p className="text-sm leading-snug text-slate-700 dark:text-slate-200">
+                      {summarizeBatchProducts(g.lines)}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      {g.lines.length} {t.suppHistoryProductCount}
+                    </p>
+                    <div className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-sm dark:border-slate-700">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">{t.suppHistoryColTotal}</span>
+                        <span className="nums font-semibold">
+                          {totalAmount > 0 ? `${formatNumber(totalAmount)} so'm` : '—'}
+                        </span>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-800 dark:text-white">
-                          {row.productName}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {row.supplierName}
-                          {!row.supplierId && (
-                            <span className="text-slate-400"> · {t.suppHistoryDeletedSupplier}</span>
-                          )}
-                        </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          <Badge className={meta.badge}>{categoryLabel(row.category, t)}</Badge>
-                          <span className="text-[11px] text-slate-400">{formatDate(row.incomeDate)}</span>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">{t.suppHistoryColPaid}</span>
+                        <span className="nums">{paid > 0 ? `${formatNumber(paid)} so'm` : '—'}</span>
+                      </div>
+                      {debt > 1e-6 && (
+                        <div className="flex justify-between text-amber-700 dark:text-amber-300">
+                          <span>{t.suppHistoryColDebt}</span>
+                          <span className="nums font-medium">{formatNumber(debt)} so'm</span>
                         </div>
-                        <p className={`mt-2 nums text-base font-bold ${meta.text}`}>
-                          {formatNumber(row.quantity)} {row.unit}
-                        </p>
-                        {row.totalAmount != null && row.totalAmount > 0 && (
-                          <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                            {t.suppLineTotal}: {formatNumber(row.totalAmount)} so'm
-                          </p>
-                        )}
-                        {row.paidAmount != null && (
-                          <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
-                            {t.suppHistoryColPaid}: {formatNumber(row.paidAmount)} so'm
-                          </p>
-                        )}
-                        {row.supplierDebtAmount != null && row.supplierDebtAmount > 1e-6 && (
-                          <p className="mt-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
-                            {t.suppHistoryColDebt}: {formatNumber(row.supplierDebtAmount)} so'm
-                          </p>
-                        )}
-                        {row.onCredit && row.supplierDebtAmount != null && row.supplierDebtAmount > 1e-6 && (
-                          <Badge variant="outline" className="mt-1 text-[10px]">
-                            {t.suppHistoryColDebt}
-                          </Badge>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </Card>
                 );
@@ -1013,21 +1143,19 @@ export function Suppliers() {
         open={purchaseOpen}
         onOpenChange={(open) => {
           setPurchaseOpen(open);
-          if (!open) setPurchaseForm(EMPTY_PURCHASE);
+          if (!open) {
+            setPurchaseForm(EMPTY_PURCHASE);
+            setPurchaseEditingKey('');
+          }
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{t.suppPurchaseTitle}</DialogTitle>
             <DialogDescription className="space-y-2 text-pretty">
               {purchaseSelectedSupplier ? (
                 <span className="font-medium text-slate-800 dark:text-slate-100">
                   {purchaseSelectedSupplier.fullName}
-                </span>
-              ) : null}
-              {purchaseSelectedParent ? (
-                <span className="block font-medium text-slate-800 dark:text-slate-100">
-                  {purchaseSelectedParent.productName}
                 </span>
               ) : null}
               <span className="block">{t.suppPurchaseDesc}</span>
@@ -1053,94 +1181,213 @@ export function Suppliers() {
                 </SelectContent>
               </Select>
             </div>
+
             <div>
-              <Label>{t.suppPurchasePickParent} *</Label>
-              {warehousePurchaseOptions.length === 0 ? (
-                <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">{t.suppNoParentProducts}</p>
-              ) : (
-                <Select
-                  value={purchaseForm.parentWarehouseItemId || undefined}
-                  onValueChange={(v) => {
-                    const w = state.warehouseItems.find((x) => x.id === v);
-                    setPurchaseForm((f) => ({
-                      ...f,
-                      parentWarehouseItemId: v,
-                      pricePerUnit: prefPurchasePrice(w),
-                    }));
-                  }}
-                >
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue placeholder={t.suppPurchasePickParent} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {warehousePurchaseOptions.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {warehousePurchaseLabel(w)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {purchaseSelectedParent && (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Badge className={categoryMeta(purchaseSelectedParent.category).badge}>
-                    {categoryMeta(purchaseSelectedParent.category).emoji}{' '}
-                    {categoryLabel(purchaseSelectedParent.category, t)}
-                  </Badge>
-                  {purchaseSelectedParent.parentWarehouseId ? (
-                    <Badge variant="outline" className="text-[10px] font-normal">
-                      {t.whSubLineBadge}
-                    </Badge>
-                  ) : null}
-                  <span className="text-xs text-slate-500">
-                    {t.unit}: {purchaseSelectedParent.unit === 'kg' ? 'kg' : t.unitPcs}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div>
-              <Label>{t.whQuantity} *</Label>
+              <Label>{t.whIncomeDate}</Label>
               <Input
-                value={purchaseForm.quantity}
-                onChange={(e) => setPurchaseForm((f) => ({ ...f, quantity: e.target.value }))}
-                className="mt-1.5"
-                inputMode="decimal"
+                type="date"
+                value={purchaseForm.incomeDate}
+                onChange={(e) => setPurchaseForm((f) => ({ ...f, incomeDate: e.target.value }))}
+                className="mt-1.5 max-w-[12rem]"
               />
-              {purchaseSelectedParent?.unit === 'pcs' && (
-                <p className="mt-1 text-xs text-slate-500">{t.suppPurchasePcsWhole}</p>
-              )}
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <Label>{t.whIncomeDate}</Label>
-                <Input
-                  type="date"
-                  value={purchaseForm.incomeDate}
-                  onChange={(e) => setPurchaseForm((f) => ({ ...f, incomeDate: e.target.value }))}
-                  className="mt-1.5"
-                />
+
+            {warehousePurchaseOptions.length === 0 ? (
+              <p className="text-sm text-amber-700 dark:text-amber-300">{t.suppNoParentProducts}</p>
+            ) : (
+              <div className="space-y-2">
+                <Label>{t.suppPurchaseLinesTitle}</Label>
+                {(() => {
+                  const editingLine =
+                    purchaseForm.lines.find((l) => l.key === purchaseEditingKey) ??
+                    purchaseForm.lines[purchaseForm.lines.length - 1];
+                  const collapsedLines = purchaseForm.lines.filter(
+                    (l) => l.key !== editingLine?.key,
+                  );
+                  const { w: editW, lineTotal: editTotal } = editingLine
+                    ? parseDraftLine(editingLine)
+                    : { w: undefined, lineTotal: null };
+
+                  return (
+                    <>
+                      {collapsedLines.map((line) => {
+                        const { w, qtyNum, priceNum, lineTotal } = parseDraftLine(line);
+                        const unitLbl = w?.unit === 'kg' ? 'kg' : t.unitPcs;
+                        return (
+                          <div
+                            key={line.key}
+                            className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900/40"
+                          >
+                            <div className="min-w-0 flex-1 text-sm leading-snug">
+                              <span className="font-medium text-slate-800 dark:text-slate-100">
+                                {w ? warehouseProductTitle(w) : '—'}
+                              </span>
+                              {qtyNum != null && (
+                                <span className="text-slate-600 dark:text-slate-300">
+                                  {' '}
+                                  ·{' '}
+                                  <span className="nums">
+                                    {formatQuantity(qtyNum, w?.unit ?? 'kg')} {unitLbl}
+                                  </span>
+                                  {priceNum != null && (
+                                    <>
+                                      {' '}
+                                      ·{' '}
+                                      <span className="nums">
+                                        {formatNumber(priceNum)} so'm/{unitLbl}
+                                      </span>
+                                    </>
+                                  )}
+                                  {lineTotal != null && (
+                                    <>
+                                      {' '}
+                                      ·{' '}
+                                      <span className="nums font-semibold text-slate-800 dark:text-white">
+                                        {formatNumber(lineTotal)} so'm
+                                      </span>
+                                    </>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-slate-500 hover:text-sky-600"
+                              aria-label={t.posEditOrder}
+                              onClick={() => setPurchaseEditingKey(line.key)}
+                            >
+                              <Pencil size={15} />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-slate-500 hover:text-red-600"
+                              aria-label={t.delete}
+                              onClick={() => removePurchaseLine(line.key)}
+                            >
+                              <Trash2 size={15} />
+                            </Button>
+                          </div>
+                        );
+                      })}
+
+                      {editingLine && (
+                        <div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50/40 p-3 dark:border-sky-900/50 dark:bg-sky-950/20">
+                          <Label className="text-xs">{t.suppPurchasePickParent} *</Label>
+                          <Select
+                            value={editingLine.warehouseItemId || undefined}
+                            onValueChange={(v) => {
+                              const item = state.warehouseItems.find((x) => x.id === v);
+                              updatePurchaseLine(editingLine.key, {
+                                warehouseItemId: v,
+                                pricePerUnit: prefPurchasePrice(item),
+                              });
+                            }}
+                          >
+                            <SelectTrigger className="rounded-xl">
+                              <SelectValue placeholder={t.suppPurchasePickParent} />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              {warehousePurchaseOptions.map((opt) => (
+                                <SelectItem key={opt.id} value={opt.id}>
+                                  {warehouseSessionLabel(opt)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {editW && (
+                            <p className="text-[10px] text-slate-500">{t.suppPurchaseSessionQtyHint}</p>
+                          )}
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <Label className="text-xs">{t.whQuantity} *</Label>
+                              <Input
+                                value={editingLine.quantity}
+                                onChange={(e) =>
+                                  updatePurchaseLine(editingLine.key, { quantity: e.target.value })
+                                }
+                                className="mt-1 rounded-xl"
+                                inputMode="decimal"
+                                placeholder={editW?.unit === 'kg' ? '2,3' : '5'}
+                              />
+                              {editW?.unit === 'pcs' && (
+                                <p className="mt-1 text-[10px] text-slate-500">{t.suppPurchasePcsWhole}</p>
+                              )}
+                            </div>
+                            <div>
+                              <Label className="text-xs">{t.suppPricePerUnit}</Label>
+                              <Input
+                                value={editingLine.pricePerUnit}
+                                onChange={(e) =>
+                                  updatePurchaseLine(editingLine.key, {
+                                    pricePerUnit: e.target.value,
+                                  })
+                                }
+                                className="mt-1 rounded-xl"
+                                inputMode="decimal"
+                              />
+                            </div>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-300">
+                            {t.suppLineTotal}:{' '}
+                            <span className="nums font-semibold">
+                              {editTotal != null ? `${formatNumber(editTotal)} so'm` : '—'}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full rounded-xl"
+                        onClick={commitPurchaseLineAndAddNext}
+                      >
+                        <Plus size={14} className="mr-1.5" />
+                        {t.suppAddPurchaseLine}
+                      </Button>
+                    </>
+                  );
+                })()}
               </div>
-              <div>
-                <Label>{t.suppPricePerUnit}</Label>
-                <Input
-                  value={purchaseForm.pricePerUnit}
-                  onChange={(e) => setPurchaseForm((f) => ({ ...f, pricePerUnit: e.target.value }))}
-                  className="mt-1.5"
-                  placeholder="—"
-                  inputMode="decimal"
-                />
+            )}
+
+            {purchaseByProductSummary.length > 0 && (
+              <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2.5 dark:border-indigo-900/50 dark:bg-indigo-950/30">
+                <p className="text-xs font-medium text-indigo-800 dark:text-indigo-200">
+                  {t.suppByProductSummary}
+                </p>
+                <ul className="mt-2 space-y-1.5 text-sm">
+                  {purchaseByProductSummary.map((g) => (
+                    <li
+                      key={g.id}
+                      className="flex flex-wrap items-baseline justify-between gap-2 text-slate-800 dark:text-slate-100"
+                    >
+                      <span className="min-w-0 truncate font-medium">{g.label}</span>
+                      <span className="nums shrink-0 text-right text-xs sm:text-sm">
+                        {formatQuantity(g.qty, g.unit)} {g.unit === 'kg' ? 'kg' : t.unitPcs}
+                        {g.hasPrice ? ` · ${formatNumber(g.amount)} so'm` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
+            )}
+
             <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500">{t.suppLineTotal}</p>
+              <p className="text-xs text-slate-500">{t.suppPurchaseGrandTotal}</p>
               <p className="nums text-lg font-semibold text-slate-900 dark:text-slate-100">
-                {purchaseLineTotal != null ? `${formatNumber(purchaseLineTotal)} so'm` : '—'}
+                {purchaseOrderTotal != null ? `${formatNumber(purchaseOrderTotal)} so'm` : '—'}
               </p>
             </div>
             <div>
               <Label>
                 {t.suppPaidAmount}
-                {purchaseLineTotal != null ? ' *' : ''}
+                {purchaseOrderTotal != null ? ' *' : ''}
               </Label>
               <Input
                 value={purchaseForm.paidAmount}
@@ -1148,9 +1395,9 @@ export function Suppliers() {
                 className="mt-1.5"
                 placeholder="0"
                 inputMode="decimal"
-                disabled={purchaseLineTotal == null || !purchaseForm.onCredit}
+                disabled={purchaseOrderTotal == null || !purchaseForm.onCredit}
               />
-              {purchaseForm.onCredit && purchaseLineTotal != null && debtPreviewSo != null && (
+              {purchaseForm.onCredit && purchaseOrderTotal != null && debtPreviewSo != null && (
                 <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-200">
                   {t.suppDebtPreview}: {formatNumber(debtPreviewSo)} so'm
                 </p>
@@ -1266,48 +1513,49 @@ export function Suppliers() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t.suppHistoryColDate}</TableHead>
-                  <TableHead>{t.suppHistoryColProduct}</TableHead>
-                  <TableHead>{t.suppHistoryColCategory}</TableHead>
-                  <TableHead className="text-right">{t.suppHistoryColQty}</TableHead>
+                  <TableHead>{t.suppHistoryColProducts}</TableHead>
                   <TableHead className="text-right">{t.suppHistoryColTotal}</TableHead>
                   <TableHead className="text-right">{t.suppHistoryColPaid}</TableHead>
                   <TableHead className="text-right">{t.suppHistoryColDebt}</TableHead>
+                  <TableHead className="w-[3rem]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {supplierDetailPurchases.length === 0 ? (
-                  <TableEmpty colSpan={7} message={t.suppHistoryNoData} />
+                {supplierDetailPurchaseGroups.length === 0 ? (
+                  <TableEmpty colSpan={6} message={t.suppHistoryNoData} />
                 ) : (
-                  supplierDetailPurchases.map((row) => {
-                    const meta = categoryMeta(row.category);
+                  supplierDetailPurchaseGroups.map((g) => {
+                    const { totalAmount, paid, debt } = batchMoneyTotals(g);
                     return (
-                      <TableRow key={row.id}>
+                      <TableRow key={g.batchId}>
                         <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
-                          {formatDate(row.incomeDate)}
+                          {formatDate(g.incomeDate)}
                         </TableCell>
-                        <TableCell className="font-medium text-slate-800 dark:text-white">
-                          {row.productName}
+                        <TableCell className="max-w-[20rem]">
+                          <p className="text-sm font-medium leading-snug">{summarizeBatchProducts(g.lines)}</p>
+                          <p className="text-[10px] text-slate-400">
+                            {g.lines.length} {t.suppHistoryProductCount}
+                          </p>
                         </TableCell>
-                        <TableCell>
-                          <Badge className={meta.badge}>
-                            {meta.emoji} {categoryLabel(row.category, t)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className={`nums text-right font-semibold ${meta.text}`}>
-                          {formatNumber(row.quantity)} {row.unit}
+                        <TableCell className="nums text-right font-semibold">
+                          {totalAmount > 0 ? `${formatNumber(totalAmount)} so'm` : '—'}
                         </TableCell>
                         <TableCell className="nums text-right text-slate-600 dark:text-slate-300">
-                          {row.totalAmount != null && row.totalAmount > 0
-                            ? `${formatNumber(row.totalAmount)} so'm`
-                            : '—'}
-                        </TableCell>
-                        <TableCell className="nums text-right text-slate-600 dark:text-slate-300">
-                          {row.paidAmount != null ? `${formatNumber(row.paidAmount)} so'm` : '—'}
+                          {paid > 0 || totalAmount > 0 ? `${formatNumber(paid)} so'm` : '—'}
                         </TableCell>
                         <TableCell className="nums text-right text-amber-700 dark:text-amber-300">
-                          {row.supplierDebtAmount != null && row.supplierDebtAmount > 1e-6
-                            ? `${formatNumber(row.supplierDebtAmount)} so'm`
-                            : '—'}
+                          {debt > 1e-6 ? `${formatNumber(debt)} so'm` : '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setHistoryEditBatch(g)}
+                          >
+                            <Pencil size={15} />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );
@@ -1318,47 +1566,32 @@ export function Suppliers() {
           </div>
 
           <div className="max-h-[min(50vh,24rem)] space-y-3 overflow-y-auto md:hidden">
-            {supplierDetailPurchases.length === 0 ? (
+            {supplierDetailPurchaseGroups.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-400">{t.suppHistoryNoData}</p>
             ) : (
-              supplierDetailPurchases.map((row) => {
-                const meta = categoryMeta(row.category);
+              supplierDetailPurchaseGroups.map((g) => {
+                const { totalAmount, paid, debt } = batchMoneyTotals(g);
                 return (
-                  <Card key={row.id} className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${meta.iconBg} text-lg`}
+                  <Card key={g.batchId} className="p-4">
+                    <div className="mb-2 flex justify-between">
+                      <span className="text-xs text-slate-500">{formatDate(g.incomeDate)}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setHistoryEditBatch(g)}
                       >
-                        <span>{meta.emoji}</span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-800 dark:text-white">
-                          {row.productName}
-                        </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          <Badge className={meta.badge}>{categoryLabel(row.category, t)}</Badge>
-                          <span className="text-[11px] text-slate-400">{formatDate(row.incomeDate)}</span>
-                        </div>
-                        <p className={`mt-2 nums text-base font-bold ${meta.text}`}>
-                          {formatNumber(row.quantity)} {row.unit}
-                        </p>
-                        {row.totalAmount != null && row.totalAmount > 0 && (
-                          <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                            {t.suppLineTotal}: {formatNumber(row.totalAmount)} so'm
-                          </p>
-                        )}
-                        {row.paidAmount != null && (
-                          <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
-                            {t.suppHistoryColPaid}: {formatNumber(row.paidAmount)} so'm
-                          </p>
-                        )}
-                        {row.supplierDebtAmount != null && row.supplierDebtAmount > 1e-6 && (
-                          <p className="mt-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
-                            {t.suppHistoryColDebt}: {formatNumber(row.supplierDebtAmount)} so'm
-                          </p>
-                        )}
-                      </div>
+                        <Pencil size={15} />
+                      </Button>
                     </div>
+                    <p className="text-sm leading-snug">{summarizeBatchProducts(g.lines)}</p>
+                    <p className="mt-2 nums font-semibold">
+                      {totalAmount > 0 ? `${formatNumber(totalAmount)} so'm` : '—'}
+                    </p>
+                    {debt > 1e-6 && (
+                      <p className="text-xs text-amber-700">{t.suppHistoryColDebt}: {formatNumber(debt)} so'm</p>
+                    )}
                   </Card>
                 );
               })
@@ -1387,6 +1620,17 @@ export function Suppliers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SupplierPurchaseEditDialog
+        batch={historyEditBatch}
+        open={Boolean(historyEditBatch)}
+        onOpenChange={(o) => {
+          if (!o) setHistoryEditBatch(null);
+        }}
+        warehouseOptions={warehousePurchaseOptions}
+        warehouseProductTitle={warehouseProductTitle}
+        prefPrice={prefPurchasePrice}
+      />
 
       <AlertDialog open={Boolean(confirmDelete)} onOpenChange={() => setConfirmDelete(null)}>
         <AlertDialogContent>

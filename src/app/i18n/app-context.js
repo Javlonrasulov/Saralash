@@ -12,7 +12,7 @@ function readStoredLang() {
     catch {
         /* ignore */
     }
-    return 'uz_latin';
+    return 'uz_cyrillic';
 }
 export function AppProvider({ children }) {
     const [lang, setLangState] = useState(readStoredLang);

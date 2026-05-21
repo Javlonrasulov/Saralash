@@ -69,6 +69,21 @@ export function NavbarDateRangePicker() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const mq = window.matchMedia('(max-width: 639px)');
+    const lock = () => {
+      if (mq.matches) document.documentElement.classList.add('overflow-hidden');
+    };
+    const unlock = () => document.documentElement.classList.remove('overflow-hidden');
+    lock();
+    mq.addEventListener('change', lock);
+    return () => {
+      mq.removeEventListener('change', lock);
+      unlock();
+    };
+  }, [open]);
+
   const syncInputsFromDraft = (from: string, to: string) => {
     setFromInput(formatYmdDisplay(from));
     setToInput(formatYmdDisplay(to));
@@ -235,10 +250,12 @@ export function NavbarDateRangePicker() {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex h-9 max-w-[min(42vw,11rem)] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 sm:max-w-[14rem] sm:px-2.5 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600"
+          title={triggerLabel}
+          aria-label={triggerLabel}
+          className="flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 sm:w-auto sm:max-w-[14rem] sm:px-2.5 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600"
         >
           <CalendarIcon size={14} className="shrink-0 text-indigo-500" />
-          <span className="truncate">{triggerLabel}</span>
+          <span className="hidden max-w-[10rem] truncate sm:inline">{triggerLabel}</span>
         </button>
         {filter.mode === 'range' && (
           <button
@@ -253,7 +270,19 @@ export function NavbarDateRangePicker() {
       </div>
 
       {open && (
-        <div className="absolute right-0 top-full z-[85] mt-2 w-[min(calc(100vw-1.5rem),22rem)] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-300/40 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/50 sm:w-[22rem]">
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[84] bg-slate-900/30 sm:hidden"
+            aria-label={t.cancel}
+            onClick={() => setOpen(false)}
+          />
+          <div
+            className={cn(
+              'fixed left-3 right-3 top-[4.5rem] z-[85] max-h-[min(32rem,calc(100dvh-5.5rem))] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-300/40 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/50',
+              'sm:absolute sm:inset-x-auto sm:right-0 sm:left-auto sm:top-full sm:mt-2 sm:max-h-none sm:w-[22rem] sm:overflow-visible',
+            )}
+          >
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
@@ -403,9 +432,13 @@ export function NavbarDateRangePicker() {
             className="mt-3 h-10 w-full rounded-xl"
             onClick={applyDraft}
           >
-            {t.navDateApply} ({formatYmdDisplay(draftFrom)} — {formatYmdDisplay(draftTo)})
+            <span className="sm:hidden">{t.navDateApply}</span>
+            <span className="hidden sm:inline">
+              {t.navDateApply} ({formatYmdDisplay(draftFrom)} — {formatYmdDisplay(draftTo)})
+            </span>
           </Button>
         </div>
+        </>
       )}
     </div>
   );

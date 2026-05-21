@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { CustomersModule } from './modules/customers/customers.module.js';
 import { WarehouseModule } from './modules/warehouse/warehouse.module.js';
 import { UsersModule } from './modules/users/users.module.js';
+import { AppStateModule } from './modules/app-state/app-state.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UsersModule } from './modules/users/users.module.js';
     CustomersModule,
     WarehouseModule,
     UsersModule,
+    AppStateModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

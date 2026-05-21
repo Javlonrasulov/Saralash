@@ -22,6 +22,21 @@ export function formatNumber(n: number): string {
   return (neg ? '-' : '') + parts.join(' ');
 }
 
+/** Miqdor (kg: 2,3; dona: butun son). */
+export function formatQuantity(n: number, unit: 'kg' | 'pcs' = 'kg'): string {
+  if (!Number.isFinite(n)) return '0';
+  if (unit === 'pcs') return formatNumber(Math.floor(n));
+  const v = Math.round(n * 1000) / 1000;
+  const neg = v < 0;
+  const abs = Math.abs(v);
+  const intPart = Math.floor(abs);
+  const frac = Math.round((abs - intPart) * 1000);
+  const intStr = formatNumber(intPart);
+  if (frac <= 0) return (neg ? '-' : '') + intStr;
+  const fracStr = String(frac).padStart(3, '0').replace(/0+$/, '');
+  return `${neg ? '-' : ''}${intStr},${fracStr}`;
+}
+
 /**
  * Summa kiritish maydoni uchun: faqat raqamlar, mingliklar orasida oddiy bo'shliq (masalan 200000 → "200 000").
  */

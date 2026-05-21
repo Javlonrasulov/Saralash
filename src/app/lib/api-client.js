@@ -47,6 +47,22 @@ export async function authLogin(identifier, password) {
     setApiTokens(session.accessToken, session.refreshToken);
     return session;
 }
+/** Saqlangan sessiyani tiklash: access token yaroqsiz bo‘lsa refresh orqali yangilaydi. */
+export async function restoreApiSession(stored) {
+    hydrateTokensFromStorage(stored);
+    try {
+        const me = await authMe(stored.accessToken);
+        return { user: me, accessToken: stored.accessToken, refreshToken: stored.refreshToken };
+    }
+    catch {
+        try {
+            return await authRefresh(stored.refreshToken);
+        }
+        catch {
+            return null;
+        }
+    }
+}
 export async function authRefresh(rt) {
     const res = await fetch(apiUrl('/auth/refresh'), {
         method: 'POST',

@@ -24,9 +24,13 @@ import {
   EyeOff,
   BarChart3,
   User as UserIcon,
+  Minus,
+  Plus,
+  Type,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useApp } from '../i18n/app-context';
+import { useFontScale } from '../context/font-scale-context';
 import { useAuth } from '../auth/auth-context';
 import { hasPageAccess, type AppRouteKey } from '../auth/types';
 import type { Language } from '../i18n/translations';
@@ -49,6 +53,42 @@ const LANG_OPTIONS: { value: Language; short: string; label: string; flag: strin
   { value: 'ru', short: 'RU', label: 'Русский', flag: '🇷🇺' },
 ];
 
+function FontScaleControls() {
+  const { t } = useApp();
+  const { decrease, increase, canDecrease, canIncrease, fontScale } = useFontScale();
+
+  return (
+    <div
+      className="flex h-9 shrink-0 items-center rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
+      role="group"
+      aria-label={t.fontSizeLarger}
+    >
+      <button
+        type="button"
+        onClick={decrease}
+        disabled={!canDecrease}
+        title={t.fontSizeSmaller}
+        className="rounded-l-xl px-1.5 py-1.5 text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 min-[420px]:px-2 dark:hover:bg-slate-700"
+      >
+        <Minus size={14} />
+      </button>
+      <span className="hidden items-center gap-1 border-x border-slate-200 px-1.5 text-[11px] font-semibold text-slate-500 min-[420px]:flex dark:border-slate-700 dark:text-slate-400">
+        <Type size={12} className="text-slate-400" />
+        {fontScale === 'sm' ? 'A-' : fontScale === 'lg' ? 'A+' : fontScale === 'xl' ? 'A++' : 'A'}
+      </span>
+      <button
+        type="button"
+        onClick={increase}
+        disabled={!canIncrease}
+        title={t.fontSizeLarger}
+        className="rounded-r-xl px-1.5 py-1.5 text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 min-[420px]:px-2 dark:hover:bg-slate-700"
+      >
+        <Plus size={14} />
+      </button>
+    </div>
+  );
+}
+
 function LanguageDropdown() {
   const { lang, setLang } = useApp();
   const [open, setOpen] = useState(false);
@@ -69,17 +109,17 @@ function LanguageDropdown() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600"
+        className="flex h-9 w-9 shrink-0 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 transition-colors hover:border-slate-300 min-[420px]:w-auto min-[420px]:px-2.5 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600"
       >
-        <Globe size={14} className="text-slate-400" />
-        <span>{current.short}</span>
+        <Globe size={14} className="shrink-0 text-slate-400" />
+        <span className="hidden min-[420px]:inline">{current.short}</span>
         <ChevronDown
           size={12}
-          className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`hidden shrink-0 text-slate-400 transition-transform min-[420px]:block ${open ? 'rotate-180' : ''}`}
         />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-[80] mt-2 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 shadow-2xl shadow-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:shadow-black/40">
+        <div className="fixed right-3 left-3 top-[4.5rem] z-[80] overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 shadow-2xl shadow-slate-300/40 min-[420px]:absolute min-[420px]:left-auto min-[420px]:right-0 min-[420px]:top-full min-[420px]:mt-2 min-[420px]:w-52 dark:border-slate-700 dark:bg-slate-800 dark:shadow-black/40">
           {LANG_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -227,7 +267,9 @@ function ProfileCredentialsDialog({
                 onChange={(e) => setNewLogin(e.target.value)}
                 className="h-10 rounded-xl"
                 minLength={2}
+                maxLength={64}
               />
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t.authLoginCyrillicHint}</p>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="profile-new-pw">{t.authNewPasswordOptional}</Label>
@@ -455,37 +497,39 @@ export function Layout() {
         }`}
       >
         {/* Header */}
-        <header className="z-10 flex min-h-14 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900 lg:h-14 lg:px-5 lg:py-0">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
-            aria-label="Menu"
-          >
-            <Menu size={18} />
-          </button>
+        <header className="z-10 shrink-0 border-b border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900 lg:flex lg:h-14 lg:items-center lg:gap-3 lg:px-5 lg:py-0">
+          <div className="flex min-w-0 items-center gap-2 lg:flex-1">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden"
+              aria-label="Menu"
+            >
+              <Menu size={18} />
+            </button>
 
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-sm font-semibold text-slate-800 dark:text-white sm:text-base">
+            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-white sm:text-base">
               {pageTitle}
             </h1>
           </div>
 
-          <NavbarDateRangePicker />
+          <div className="mt-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 hide-scrollbar sm:gap-1.5 lg:mt-0 lg:shrink-0 lg:overflow-visible lg:pb-0">
+            <NavbarDateRangePicker />
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-              className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="shrink-0 rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
               aria-label="Theme"
             >
               {resolvedTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
 
+            <FontScaleControls />
+
             <LanguageDropdown />
 
-            <div className="hidden items-center gap-2 border-l border-slate-200 pl-2 dark:border-slate-700 sm:flex">
+            <div className="hidden shrink-0 items-center gap-2 border-l border-slate-200 pl-2 dark:border-slate-700 md:flex">
               <button
                 type="button"
                 onClick={() => setProfileOpen(true)}
@@ -495,7 +539,7 @@ export function Layout() {
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-blue-600">
                   <UserIcon size={12} className="text-white" />
                 </div>
-                <div className="hidden min-w-0 md:block">
+                <div className="hidden min-w-0 lg:block">
                   <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">
                     {user?.fullName ?? '—'}
                   </p>
@@ -524,16 +568,15 @@ export function Layout() {
               type="button"
               onClick={() => setProfileOpen(true)}
               title={t.authProfileTitle}
-              className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 sm:hidden"
+              className="shrink-0 rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden"
             >
               <UserIcon size={16} />
             </button>
-            {/* Mobile compact logout */}
             <button
               type="button"
               onClick={() => logout()}
               title={t.authLogout}
-              className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 sm:hidden"
+              className="shrink-0 rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden"
             >
               <LogOut size={16} />
             </button>

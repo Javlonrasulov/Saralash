@@ -6,6 +6,7 @@ import {
   authLogoutApi,
   authMe,
   hydrateTokensFromStorage,
+  restoreApiSession,
   setApiTokens,
 } from '../lib/api-client';
 import type { DemoStoredUser } from '../lib/demo-users-store';
@@ -146,31 +147,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return;
     }
-    hydrateTokensFromStorage({
-      user: stored.user,
-      accessToken: stored.accessToken,
-      refreshToken: stored.refreshToken,
-    });
     setUser(stored.user);
     setSessionMode('api');
     (async () => {
-      try {
-        const me = await authMe(stored.accessToken);
-        setUser(me);
+      const session = await restoreApiSession({
+        user: stored.user,
+        accessToken: stored.accessToken,
+        refreshToken: stored.refreshToken,
+      });
+      if (session) {
+        setUser(session.user);
         persist({
           mode: 'api',
-          user: me,
-          accessToken: stored.accessToken,
-          refreshToken: stored.refreshToken,
+          user: session.user,
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken,
         });
-      } catch {
+      } else {
         setUser(null);
         setSessionMode(null);
         setApiTokens(null, null);
         persist(null);
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     })();
   }, []);
 
@@ -198,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const cred = getBuiltinDemoCredentials();
       const builtinOk =
-        identifier.trim().toLowerCase() === cred.login && password === cred.password;
+        identifier.trim() === cred.login.trim() && password === cred.password;
       const serverDown =
         isNetworkError(e) || (e instanceof Error && e.message === 'AUTH_SERVER_ERROR');
       if (serverDown && builtinOk) {
@@ -292,12 +291,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       if (!verifyPwd()) throw new Error('AUTH_WRONG_CURRENT');
 
-      const nextLoginLower = nl ? nl.toLowerCase() : u.login;
+      const nextLogin = nl ? nl.trim() : u.login;
       if (nl && isLoginTakenDemo(nl, u.id)) throw new Error('AUTH_LOGIN_TAKEN');
 
       if (u.id === DEMO_USER.id) {
         const c = getBuiltinDemoCredentials();
-        setBuiltinDemoCredentials(nl ? nextLoginLower : c.login, np || c.password);
+        setBuiltinDemoCredentials(nl ? nextLogin : c.login, np || c.password);
         const c2 = getBuiltinDemoCredentials();
         const nextUser: SessionUser = { ...DEMO_USER, login: c2.login };
         persist({ mode: 'demo', user: nextUser });
@@ -306,7 +305,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const patch: Partial<Pick<DemoStoredUser, 'login' | 'password'>> = {};
-      if (nl) patch.login = nextLoginLower;
+      if (nl) patch.login = nextLogin;
       if (np) patch.password = np;
       const row = updateDemoUser(u.id, patch);
       if (!row) throw new Error('AUTH_UPDATE_FAILED');

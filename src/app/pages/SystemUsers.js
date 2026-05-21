@@ -149,19 +149,19 @@ export function SystemUsers() {
         const positionsClean = normalizePositionsList(form.positions);
         try {
             if (!canUseApi) {
-                const loginLc = form.login.trim().toLowerCase();
+                const loginNorm = form.login.trim();
                 if (!editedId) {
-                    if (loginLc === 'admin') {
+                    if (loginNorm.toLowerCase() === 'admin') {
                         toast.error(t.usersLoginAdminReserved);
                         return;
                     }
-                    if (isLoginTakenDemo(loginLc)) {
+                    if (isLoginTakenDemo(loginNorm)) {
                         toast.error(t.usersLoginTaken);
                         return;
                     }
                     addDemoUser({
                         fullName: form.fullName.trim(),
-                        login: loginLc,
+                        login: loginNorm,
                         password: form.password,
                         role: apiRole(form.fullAccess),
                         allowedRoutes: form.fullAccess ? [...ROUTE_KEYS] : form.allowedRoutes,
@@ -171,17 +171,18 @@ export function SystemUsers() {
                     toast.success(t.add);
                 }
                 else {
-                    if (loginLc !== list.find((r) => r.id === editedId)?.login && isLoginTakenDemo(loginLc, editedId)) {
+                    const prevLogin = list.find((r) => r.id === editedId)?.login;
+                    if (loginNorm !== prevLogin && isLoginTakenDemo(loginNorm, editedId)) {
                         toast.error(t.usersLoginTaken);
                         return;
                     }
-                    if (loginLc === 'admin' && list.find((r) => r.id === editedId)?.login !== 'admin') {
+                    if (loginNorm.toLowerCase() === 'admin' && prevLogin?.toLowerCase() !== 'admin') {
                         toast.error(t.usersLoginAdminReserved);
                         return;
                     }
                     updateDemoUser(editedId, {
                         fullName: form.fullName.trim(),
-                        login: loginLc,
+                        login: loginNorm,
                         password: form.password.trim() || undefined,
                         role: apiRole(form.fullAccess),
                         allowedRoutes: form.fullAccess ? [...ROUTE_KEYS] : form.allowedRoutes,
@@ -196,12 +197,16 @@ export function SystemUsers() {
                 return;
             }
             if (editedId) {
+                const prev = list.find((r) => r.id === editedId);
+                const loginNorm = form.login.trim();
                 const body = {
                     fullName: form.fullName.trim(),
                     role: apiRole(form.fullAccess),
                     allowedRoutes: form.fullAccess ? undefined : form.allowedRoutes,
                     positions: positionsClean,
                 };
+                if (loginNorm && loginNorm !== prev?.login)
+                    body.login = loginNorm;
                 if (form.password.trim())
                     body.password = form.password;
                 const res = await apiFetch(`/users/${editedId}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -214,7 +219,7 @@ export function SystemUsers() {
                     method: 'POST',
                     body: JSON.stringify({
                         fullName: form.fullName.trim(),
-                        login: form.login.trim().toLowerCase(),
+                        login: form.login.trim(),
                         password: form.password,
                         role: apiRole(form.fullAccess),
                         allowedRoutes: form.fullAccess ? undefined : form.allowedRoutes,
@@ -283,7 +288,7 @@ export function SystemUsers() {
             toast.error(t.usersDeleteBlocked);
         }
     };
-    return (_jsxs("div", { className: "grid gap-6 lg:grid-cols-2 lg:items-start", children: [!canUseApi && (_jsxs(Card, { className: "flex gap-3 border-sky-200 bg-sky-50/90 p-4 dark:border-sky-900/40 dark:bg-sky-950/25 lg:col-span-2", children: [_jsx(Info, { className: "mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" }), _jsx("p", { className: "text-sm leading-relaxed text-sky-900 dark:text-sky-100", children: t.usersDemoBanner })] })), _jsxs(Card, { className: "border-slate-200 p-5 dark:border-slate-700", children: [_jsx("h2", { className: "text-lg font-semibold text-slate-800 dark:text-white", children: t.usersNewTitle }), _jsx("p", { className: "mt-1 text-xs text-slate-500 dark:text-slate-400", children: t.usersNewHint }), _jsxs("form", { onSubmit: submit, className: "mt-4 space-y-4", children: [_jsxs("div", { children: [_jsx(Label, { children: t.usersFullName }), _jsx(Input, { value: form.fullName, onChange: (e) => setForm((f) => ({ ...f, fullName: e.target.value })), className: "mt-1.5", required: true })] }), _jsxs("div", { children: [_jsx(Label, { children: t.usersLogin }), _jsx(Input, { value: form.login, onChange: (e) => setForm((f) => ({ ...f, login: e.target.value })), className: "mt-1.5", disabled: Boolean(editingId), required: true })] }), _jsxs("div", { children: [_jsx(Label, { children: t.usersPassword }), _jsxs("div", { className: "relative mt-1.5", children: [_jsx(Input, { type: showPwd ? 'text' : 'password', value: form.password, onChange: (e) => setForm((f) => ({ ...f, password: e.target.value })), className: "pr-11", placeholder: editingId ? t.usersPasswordOptional : '', autoComplete: "new-password", required: !editingId }), _jsx("button", { type: "button", onClick: () => setShowPwd((v) => !v), "aria-label": showPwd ? t.authHidePassword : t.authShowPassword, className: "absolute right-1 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200", children: showPwd ? _jsx(EyeOff, { size: 16 }) : _jsx(Eye, { size: 16 }) })] })] }), _jsxs("div", { children: [_jsx(Label, { children: t.usersJobTitles }), _jsx("p", { className: "mt-1 text-[11px] text-slate-500 dark:text-slate-400", children: t.usersJobTitlesHint }), _jsxs("div", { className: "mt-2 space-y-2", children: [form.positions.map((line, i) => (_jsxs("div", { className: "flex gap-2", children: [_jsx(Input, { value: line, onChange: (e) => {
+    return (_jsxs("div", { className: "grid gap-6 lg:grid-cols-2 lg:items-start", children: [!canUseApi && (_jsxs(Card, { className: "flex gap-3 border-sky-200 bg-sky-50/90 p-4 dark:border-sky-900/40 dark:bg-sky-950/25 lg:col-span-2", children: [_jsx(Info, { className: "mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" }), _jsx("p", { className: "text-sm leading-relaxed text-sky-900 dark:text-sky-100", children: t.usersDemoBanner })] })), _jsxs(Card, { className: "border-slate-200 p-5 dark:border-slate-700", children: [_jsx("h2", { className: "text-lg font-semibold text-slate-800 dark:text-white", children: t.usersNewTitle }), _jsx("p", { className: "mt-1 text-xs text-slate-500 dark:text-slate-400", children: t.usersNewHint }), _jsxs("form", { onSubmit: submit, className: "mt-4 space-y-4", children: [_jsxs("div", { children: [_jsx(Label, { children: t.usersFullName }), _jsx(Input, { value: form.fullName, onChange: (e) => setForm((f) => ({ ...f, fullName: e.target.value })), className: "mt-1.5", required: true })] }), _jsxs("div", { children: [_jsx(Label, { children: t.usersLogin }), _jsx(Input, { value: form.login, onChange: (e) => setForm((f) => ({ ...f, login: e.target.value })), className: "mt-1.5", required: true, autoComplete: "username" }), _jsx("p", { className: "mt-1 text-xs text-slate-500 dark:text-slate-400", children: t.usersLoginCyrillicHint })] }), _jsxs("div", { children: [_jsx(Label, { children: t.usersPassword }), _jsxs("div", { className: "relative mt-1.5", children: [_jsx(Input, { type: showPwd ? 'text' : 'password', value: form.password, onChange: (e) => setForm((f) => ({ ...f, password: e.target.value })), className: "pr-11", placeholder: editingId ? t.usersPasswordOptional : '', autoComplete: "new-password", required: !editingId }), _jsx("button", { type: "button", onClick: () => setShowPwd((v) => !v), "aria-label": showPwd ? t.authHidePassword : t.authShowPassword, className: "absolute right-1 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200", children: showPwd ? _jsx(EyeOff, { size: 16 }) : _jsx(Eye, { size: 16 }) })] })] }), _jsxs("div", { children: [_jsx(Label, { children: t.usersJobTitles }), _jsx("p", { className: "mt-1 text-[11px] text-slate-500 dark:text-slate-400", children: t.usersJobTitlesHint }), _jsxs("div", { className: "mt-2 space-y-2", children: [form.positions.map((line, i) => (_jsxs("div", { className: "flex gap-2", children: [_jsx(Input, { value: line, onChange: (e) => {
                                                             const v = e.target.value;
                                                             setForm((f) => {
                                                                 const next = [...f.positions];

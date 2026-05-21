@@ -8,6 +8,7 @@ import {
   Users,
   History,
   Trash2,
+  Pencil,
   CheckCircle2,
   ShoppingBag,
 } from 'lucide-react';
@@ -43,10 +44,19 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { categoryLabel } from '../utils/category';
 import { formatDate, formatMoneyInputDisplay, formatNumber, TODAY, uid } from '../utils/format';
 import { CustomerPurchaseHistoryDialog } from '../components/CustomerPurchaseHistoryDialog';
 import { PosOrderDetailDialog } from '../components/PosOrderDetailDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
 
 function aggregateSalesStats(
   outcomes: WarehouseOutcome[],
@@ -74,7 +84,7 @@ interface CartLine {
 }
 
 export function Sales() {
-  const { state, posCheckout } = useStore();
+  const { state, posCheckout, deletePosOrder } = useStore();
   const { t } = useApp();
   const { user } = useAuth();
   const { filter: navDateFilter } = useNavDateFilter();
@@ -84,7 +94,6 @@ export function Sales() {
   const [saleDate, setSaleDate] = useState(TODAY);
   const [customerId, setCustomerId] = useState<string>('');
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [category, setCategory] = useState<CategoryKey | ''>('');
   const [productId, setProductId] = useState<string>('');
   const [addQty, setAddQty] = useState('1');
   const [addPrice, setAddPrice] = useState('');
@@ -92,9 +101,10 @@ export function Sales() {
 
   const [historySearch, setHistorySearch] = useState('');
   const [historyOrderId, setHistoryOrderId] = useState<string | null>(null);
+  const [historyOpenInEditMode, setHistoryOpenInEditMode] = useState(false);
+  const [confirmDeleteOrderId, setConfirmDeleteOrderId] = useState<string | null>(null);
   const [purchaseHistoryCustomer, setPurchaseHistoryCustomer] = useState<Customer | null>(null);
 
-  const prevCategoryRef = useRef<CategoryKey | ''>('');
   const productSelectTriggerRef = useRef<HTMLButtonElement>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
 
@@ -111,16 +121,11 @@ export function Sales() {
     });
   }, [state.warehouseItems]);
 
-  const categories = useMemo(() => {
-    const s = new Set<string>();
-    for (const w of inStock) s.add(String(w.category));
-    return [...s].sort();
-  }, [inStock]);
-
-  const productsInCategory = useMemo(() => {
-    if (!category) return [];
-    return inStock.filter((w) => String(w.category) === String(category));
-  }, [inStock, category]);
+  /** Sotuv formasi: barcha kg mahsulotlar (kategoriyasiz, nom bo‘yicha). */
+  const saleProducts = useMemo(
+    () => [...inStock].sort((a, b) => a.productName.localeCompare(b.productName, 'uz')),
+    [inStock],
+  );
 
   const selectedProduct = useMemo(
     () => inStock.find((w) => w.id === productId) ?? null,
@@ -210,6 +215,23 @@ export function Sales() {
     () => (historyOrderId ? historyGroups.find((g) => g.orderId === historyOrderId) ?? null : null),
     [historyOrderId, historyGroups],
   );
+
+  const openHistoryOrder = (orderId: string, edit = false) => {
+    setHistoryOrderId(orderId);
+    setHistoryOpenInEditMode(edit);
+  };
+
+  const handleDeleteHistoryOrder = () => {
+    if (!confirmDeleteOrderId) return;
+    const ok = deletePosOrder(confirmDeleteOrderId);
+    if (!ok) {
+      toast.error(t.posSaleInvalid);
+      return;
+    }
+    toast.success(t.posOrderDeleted);
+    if (historyOrderId === confirmDeleteOrderId) setHistoryOrderId(null);
+    setConfirmDeleteOrderId(null);
+  };
 
   type AddLineOpts = { silent?: boolean; clearForNext?: boolean };
 
@@ -336,32 +358,14 @@ export function Sales() {
     setPaidInput(formatMoneyInputDisplay(String(Math.round(cartTotal))));
   }, [cartTotal]);
 
+  /** Tanlangan mahsulot ro‘yxatdan chiqsa — tanlovni tozalash */
   useEffect(() => {
-    if (!category && categories.length) setCategory(categories[0] as CategoryKey);
-  }, [category, categories]);
-
-  /** Kategoriya o‘zgaganda birinchi mahsulot; qator qo‘shilgach bo‘sh qolsa — avto-tanlamasdan keyingi tanlov */
-  useEffect(() => {
-    if (!productsInCategory.length) {
-      if (productId) setProductId('');
-      return;
-    }
-    const prevCat = prevCategoryRef.current;
-    const catChanged = prevCat !== category;
-    prevCategoryRef.current = category;
-
-    if (!productId) {
-      if (catChanged && category) setProductId(productsInCategory[0].id);
-      return;
-    }
-    if (!productsInCategory.some((w) => w.id === productId)) {
-      setProductId(productsInCategory[0].id);
-    }
-  }, [category, productsInCategory, productId]);
+    if (productId && !inStock.some((w) => w.id === productId)) setProductId('');
+  }, [inStock, productId]);
 
   /** Omborda saqlangan sotish narxi bo'lsa — sotuv formasiga avtomatik */
   useEffect(() => {
-    const p = productsInCategory.find((w) => w.id === productId);
+    const p = inStock.find((w) => w.id === productId);
     if (p?.salePricePerUnit != null && Number.isFinite(p.salePricePerUnit) && p.salePricePerUnit >= 0) {
       const sp = p.salePricePerUnit;
       if (Math.abs(sp - Math.round(sp)) < 1e-6) {
@@ -372,7 +376,7 @@ export function Sales() {
     } else {
       setAddPrice('');
     }
-  }, [productId, productsInCategory]);
+  }, [productId, inStock]);
 
   const canWarehouse = user && hasPageAccess(user, 'warehouse');
 
@@ -480,38 +484,17 @@ export function Sales() {
                 <h3 className="text-sm font-semibold text-slate-800 dark:text-white">{t.posAddProduct}</h3>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div className="sm:col-span-2">
-                    <Label className="text-xs">{t.posProductCategory}</Label>
-                    <Select
-                      value={category || undefined}
-                      onValueChange={(v) => {
-                        setCategory(v as CategoryKey);
-                        setProductId('');
-                      }}
-                    >
-                      <SelectTrigger className="mt-1.5 rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {categoryLabel(c as CategoryKey, t)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="sm:col-span-2">
                     <Label className="text-xs">{t.posProductSelect}</Label>
                     <Select
                       value={productId ? productId : undefined}
                       onValueChange={setProductId}
-                      disabled={!productsInCategory.length}
+                      disabled={!saleProducts.length}
                     >
                       <SelectTrigger ref={productSelectTriggerRef} className="mt-1.5 rounded-xl">
                         <SelectValue placeholder={t.posSelectProductFirst} />
                       </SelectTrigger>
                       <SelectContent>
-                        {productsInCategory.map((w) => (
+                        {saleProducts.map((w) => (
                           <SelectItem key={w.id} value={w.id}>
                             {w.productName} ({formatNumber(w.currentQty)} kg)
                           </SelectItem>
@@ -681,7 +664,6 @@ export function Sales() {
                           type="button"
                           onClick={() => {
                             setTab('new');
-                            setCategory(String(w.category) as CategoryKey);
                             setProductId(w.id);
                             queueMicrotask(() => {
                               qtyInputRef.current?.focus();
@@ -821,11 +803,12 @@ export function Sales() {
                   <TableHead className="text-right">{t.salesAmount}</TableHead>
                   <TableHead className="text-right">{t.posPaidLabel}</TableHead>
                   <TableHead className="text-right">{t.posDebtLabel}</TableHead>
+                  <TableHead className="w-[5.5rem] text-right">{t.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {historyGroups.length === 0 ? (
-                  <TableEmpty colSpan={6} message={t.posNoHistory} />
+                  <TableEmpty colSpan={7} message={t.posNoHistory} />
                 ) : (
                   historyGroups.map((g) => (
                     <TableRow
@@ -833,11 +816,11 @@ export function Sales() {
                       className="cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-800/60"
                       tabIndex={0}
                       role="button"
-                      onClick={() => setHistoryOrderId(g.orderId)}
+                      onClick={() => openHistoryOrder(g.orderId)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          setHistoryOrderId(g.orderId);
+                          openHistoryOrder(g.orderId);
                         }
                       }}
                     >
@@ -855,6 +838,34 @@ export function Sales() {
                       >
                         {formatNumber(g.debt)} so'm
                       </TableCell>
+                      <TableCell className="text-right">
+                        <div
+                          className="flex justify-end gap-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-sky-600"
+                            aria-label={t.posEditOrder}
+                            onClick={() => openHistoryOrder(g.orderId, true)}
+                          >
+                            <Pencil size={15} />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-red-600"
+                            aria-label={t.delete}
+                            onClick={() => setConfirmDeleteOrderId(g.orderId)}
+                          >
+                            <Trash2 size={15} />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -871,14 +882,40 @@ export function Sales() {
                   className="cursor-pointer p-3 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
                   tabIndex={0}
                   role="button"
-                  onClick={() => setHistoryOrderId(g.orderId)}
+                  onClick={() => openHistoryOrder(g.orderId)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      setHistoryOrderId(g.orderId);
+                      openHistoryOrder(g.orderId);
                     }
                   }}
                 >
+                  <div
+                    className="mb-2 flex justify-end gap-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-slate-500"
+                      aria-label={t.posEditOrder}
+                      onClick={() => openHistoryOrder(g.orderId, true)}
+                    >
+                      <Pencil size={15} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-slate-500 hover:text-red-600"
+                      aria-label={t.delete}
+                      onClick={() => setConfirmDeleteOrderId(g.orderId)}
+                    >
+                      <Trash2 size={15} />
+                    </Button>
+                  </div>
                   <p className="text-xs text-slate-500">{formatDate(g.first.date)}</p>
                   <p className="mt-1 font-medium text-slate-800 dark:text-white">{g.buyer}</p>
                   <p className="mt-1 line-clamp-2 text-xs text-slate-500">{g.products}</p>
@@ -920,10 +957,30 @@ export function Sales() {
         orderId={historyDetailGroup?.orderId ?? ''}
         lines={historyDetailGroup?.lines ?? []}
         open={Boolean(historyOrderId && historyDetailGroup)}
+        initialEditMode={historyOpenInEditMode}
         onOpenChange={(o) => {
-          if (!o) setHistoryOrderId(null);
+          if (!o) {
+            setHistoryOrderId(null);
+            setHistoryOpenInEditMode(false);
+          }
         }}
       />
+
+      <AlertDialog
+        open={!!confirmDeleteOrderId}
+        onOpenChange={(o) => !o && setConfirmDeleteOrderId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.delete}</AlertDialogTitle>
+            <AlertDialogDescription>{t.posDeleteOrderConfirm}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteHistoryOrder}>{t.delete}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

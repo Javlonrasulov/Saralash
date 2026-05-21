@@ -29,7 +29,7 @@ import { useApp } from '../i18n/app-context';
 import { useNavDateFilter } from '../context/nav-date-range-context';
 import { isYmdInNavFilter, formatYmdDisplay } from '../lib/nav-date-range';
 import { Card } from '../components/ui/card';
-import { categoryLabel, categoryMeta } from '../utils/category';
+import { categoryLabel, categoryMeta, CategoryIconGlyph } from '../utils/category';
 import { formatDecimal, formatKg, formatNumber } from '../utils/format';
 
 interface KpiTone {
@@ -289,7 +289,7 @@ export function Statistics() {
     [state.outcomes, filter],
   );
 
-  /** Davr boʻyicha postavchik xaridlari. */
+  /** Davr boʻyicha ko‘cha obyekti xaridlari. */
   const purchases = useMemo(
     () => state.supplierPurchases.filter((p) => isYmdInNavFilter(p.incomeDate, filter)),
     [state.supplierPurchases, filter],
@@ -328,7 +328,7 @@ export function Statistics() {
     return { revenue, cogs, expensesTotal, profit, margin, orderCount, avgOrder };
   }, [soldLines, warehouseById, expensesInRange]);
 
-  /** Operatsiya statistikasi: faol klient/postavchik soni, sotilgan kg. */
+  /** Operatsiya statistikasi: faol klient/ko‘cha obyekti soni, sotilgan kg. */
   const ops = useMemo(() => {
     const customerSet = new Set<string>();
     for (const o of soldLines) if (o.customerId) customerSet.add(o.customerId);
@@ -457,7 +457,7 @@ export function Statistics() {
     return [...map.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
   }, [soldLines, state.customers]);
 
-  /** Postavchik boʻyicha TOP-5 (xarid summasi). */
+  /** Ko‘cha obyekti boʻyicha TOP-5 (xarid summasi). */
   const topSuppliers = useMemo(() => {
     type Row = {
       id: string;
@@ -821,7 +821,7 @@ export function Statistics() {
                   <div key={row.cat}>
                     <div className="mb-1.5 flex items-baseline justify-between gap-3">
                       <span className="flex min-w-0 items-baseline gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-                        <span className="text-base leading-none">{meta.emoji}</span>
+                        <CategoryIconGlyph category={row.cat as CategoryKey} size={16} />
                         <span className="truncate">{categoryLabel(row.cat as CategoryKey, t)}</span>
                         <span className="nums shrink-0 text-[10px] text-slate-400">
                           {formatKg(row.qty)}
@@ -866,7 +866,7 @@ export function Statistics() {
         </div>
       </Card>
 
-      {/* Top mahsulotlar / klientlar / postavchiklar */}
+      {/* Top mahsulotlar / klientlar / ko‘cha obyektlari */}
       <div className="grid gap-4 xl:grid-cols-3">
         <Card>
           <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-700">
@@ -896,7 +896,7 @@ export function Statistics() {
                       <div className="mb-1.5 flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2.5">
                           <span
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold text-white ${meta.iconBg}`}
+                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold text-white ${meta.bar}`}
                           >
                             {i + 1}
                           </span>

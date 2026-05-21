@@ -66,6 +66,21 @@ export async function authLogin(identifier: string, password: string): Promise<P
   return session;
 }
 
+/** Saqlangan sessiyani tiklash: access token yaroqsiz bo‘lsa refresh orqali yangilaydi. */
+export async function restoreApiSession(stored: PersistedApiSession): Promise<PersistedApiSession | null> {
+  hydrateTokensFromStorage(stored);
+  try {
+    const me = await authMe(stored.accessToken);
+    return { user: me, accessToken: stored.accessToken, refreshToken: stored.refreshToken };
+  } catch {
+    try {
+      return await authRefresh(stored.refreshToken);
+    } catch {
+      return null;
+    }
+  }
+}
+
 export async function authRefresh(rt: string): Promise<PersistedApiSession> {
   const res = await fetch(apiUrl('/auth/refresh'), {
     method: 'POST',

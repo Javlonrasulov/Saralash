@@ -15,6 +15,8 @@ rsync -a --delete \
   --exclude 'backend/.env' \
   --exclude '.env' \
   "$PROD_ROOT/" "$DEV_ROOT/"
+# Eski qolgan fayllar (masalan category.ts) tsc ni buzadi
+rm -f "$PROD_ROOT/src/app/utils/category.ts" "$DEV_ROOT/src/app/utils/category.ts" 2>/dev/null || true
 
 gen_secret() { openssl rand -hex 24; }
 

@@ -11,7 +11,7 @@ export interface T {
   navWarehouse: string;
   navSales: string;
   navCustomers: string;
-  /** Tashqi yetkazib beruvchilar (xarid → ombor kirimi). */
+  /** Ko‘cha obyektlari (xarid → ombor kirimi). */
   navSuppliers: string;
   /** Korxona chiqimlari (ish haqi, ijara, va h.k.). */
   navExpenses: string;
@@ -52,7 +52,12 @@ export interface T {
   dashTotalSold: string;
   dashRecentActivity: string;
   dashWarehouseSummary: string;
+  dashWarehouseStockKg: string;
   dashEmpty: string;
+
+  // Font scale (navbar)
+  fontSizeSmaller: string;
+  fontSizeLarger: string;
 
   // Sorting
   sortingTitle: string;
@@ -94,24 +99,23 @@ export interface T {
   whIncomeDate: string;
   whOutcome: string;
   whAddProduct: string;
-  /** Omborda yangi ota (tashqi kirim); xarid emas — postavchiklar sahifasidan. */
+  /** Omborda yangi ota (tashqi kirim); xarid emas — ko‘cha obyektlari sahifasidan. */
   whAddExternalHint: string;
   whEditProduct: string;
   whDeleteConfirm: string;
   whSearchPlaceholder: string;
   whFilterCategory: string;
   whFilterAll: string;
+  /** Ombor: kategoriya SVG ikonkalar namunasi */
+  whCategoryIconSamples: string;
   whTabStock: string;
   whTabSold: string;
-  whTabUsed: string;
   whSell: string;
   whUseInProduction: string;
   whSellQuantity: string;
   whBuyer: string;
   whPricePerUnit: string;
   whSellSubmit: string;
-  whUseSubmit: string;
-  whUseReason: string;
   /** Ota zaxirasidan ajratilgan tur (oq qog'oz va h.k.) */
   whAllocateSub: string;
   whAllocateSubDesc: string;
@@ -188,7 +192,7 @@ export interface T {
   custDebtPayInvalid: string;
   custDebtPayNoDebt: string;
 
-  // Suppliers (postavchiklar)
+  // Ko‘cha obyektlari
   suppTitle: string;
   suppIntro: string;
   suppName: string;
@@ -199,7 +203,7 @@ export interface T {
   suppSearchPlaceholder: string;
   suppDeleteConfirm: string;
   suppPurchase: string;
-  /** Xarid dialogi: postavchik tanlash (yuqoridagi tugma). */
+  /** Xarid dialogi: ko‘cha obyektini tanlash (yuqoridagi tugma). */
   suppPurchasePickSupplier: string;
   /** Xarid: ombordagi ota qatorni tanlash. */
   suppPurchasePickParent: string;
@@ -208,6 +212,11 @@ export interface T {
   /** Dona ota uchun xarid miqdori butun son bo‘lishi kerak. */
   suppPurchasePcsWhole: string;
   suppLineTotal: string;
+  suppPurchaseLinesTitle: string;
+  suppAddPurchaseLine: string;
+  suppPurchaseSessionQtyHint: string;
+  suppByProductSummary: string;
+  suppPurchaseGrandTotal: string;
   suppPaidAmount: string;
   suppOnCredit: string;
   suppDebtPreview: string;
@@ -231,11 +240,19 @@ export interface T {
   suppHistoryColDate: string;
   suppHistoryColSupplier: string;
   suppHistoryColProduct: string;
+  suppHistoryColProducts: string;
   suppHistoryColCategory: string;
   suppHistoryColQty: string;
+  suppHistoryProductCount: string;
   suppHistoryColTotal: string;
   suppHistoryNoData: string;
   suppHistoryDeletedSupplier: string;
+  suppEditPurchaseTitle: string;
+  suppPurchaseUpdated: string;
+  suppPurchaseDeleted: string;
+  suppDeletePurchaseConfirm: string;
+  suppPurchaseCannotReverse: string;
+  suppPurchaseReverseHint: string;
   suppSupplierPurchasesDialogDesc: string;
   suppOpenInHistoryTab: string;
   suppTabDebts: string;
@@ -363,6 +380,8 @@ export interface T {
   posCancelEdit: string;
   posSaleUpdated: string;
   posAddOrderLine: string;
+  posDeleteOrderConfirm: string;
+  posOrderDeleted: string;
 
   /** Navbar: sana oralig‘i (Du,Se,... — hafta boshidan) */
   navDateFrom: string;
@@ -390,6 +409,7 @@ export interface T {
   authProfileDesc: string;
   authCurrentPassword: string;
   authNewLoginOptional: string;
+  authLoginCyrillicHint: string;
   authNewPasswordOptional: string;
   authNewPasswordRepeat: string;
   authSaveCredentials: string;
@@ -405,6 +425,7 @@ export interface T {
   usersNewHint: string;
   usersFullName: string;
   usersLogin: string;
+  usersLoginCyrillicHint: string;
   usersPassword: string;
   usersPasswordOptional: string;
   usersJobTitles: string;
@@ -514,8 +535,8 @@ const uz_latin: T = {
   navSorting: 'Saralash',
   navWarehouse: 'Ombor',
   navSales: 'Sotuv',
-  navCustomers: 'Klientlar',
-  navSuppliers: 'Postavchiklar',
+  navCustomers: 'Klientlar (sotish)',
+  navSuppliers: 'Ko‘cha obyektlari (olish)',
   navExpenses: 'Chiqim',
   navSystemUsers: 'Tizim foydalanuvchilari',
   navSettings: 'Sozlamalar',
@@ -552,7 +573,10 @@ const uz_latin: T = {
   dashTotalSold: 'Sotilgan',
   dashRecentActivity: "So'nggi harakatlar",
   dashWarehouseSummary: 'Ombor xulosasi',
+  dashWarehouseStockKg: 'Ombordagi jami',
   dashEmpty: "Hozircha hech qanday ma'lumot yo'q",
+  fontSizeSmaller: 'Shriftni kichiklashtirish',
+  fontSizeLarger: 'Shriftni kattalashtirish',
 
   sortingTitle: 'Saralash jarayoni',
   sortingIntake: 'Yangi kirim',
@@ -587,12 +611,13 @@ const uz_latin: T = {
   whProductName: 'Mahsulot nomi',
   whCategory: 'Kategoriya',
   whCategoryPlaceholder: 'Masalan: Plastik qoplar',
+  whCategoryIconSamples: 'Namuna belgilar',
   whQuantity: 'Miqdor',
   whIncomeDate: 'Kirim sanasi',
   whOutcome: 'Chiqim',
   whAddProduct: "Mahsulot qo'shish",
   whAddExternalHint:
-    'Bu yerda tashqi/ko‘chma ombor kirimi (ota qator) va bir vaqtda ixtiyoriy ajratilgan turlar. Xarid — «Postavchiklar» sahifasidan.',
+    'Bu yerda tashqi/ko‘chma ombor kirimi (ota qator) va bir vaqtda ixtiyoriy ajratilgan turlar. Xarid — «Ko‘cha obyektlari» sahifasidan.',
   whEditProduct: 'Mahsulotni tahrirlash',
   whDeleteConfirm: 'Mahsulotni rostdan ham oʻchirmoqchimisiz?',
   whSearchPlaceholder: 'Nom yoki kategoriya...',
@@ -600,15 +625,12 @@ const uz_latin: T = {
   whFilterAll: 'Barcha kategoriyalar',
   whTabStock: 'Omborda',
   whTabSold: 'Sotilgan',
-  whTabUsed: 'Ishlatilgan',
   whSell: 'Sotish',
   whUseInProduction: 'Ishlatish',
   whSellQuantity: 'Sotiladigan miqdor',
   whBuyer: 'Xaridor',
   whPricePerUnit: '1 birlik narxi',
   whSellSubmit: 'Sotuvni qayd etish',
-  whUseSubmit: 'Ishlatishni qayd etish',
-  whUseReason: 'Ishlatish sababi',
   whAllocateSub: 'Ajratish',
   whAllocateSubDesc:
     'Bu xarid emas: bor ota zaxirasidan saralangan tur (masalan oq qog\'oz) ajratiladi — ota miqdori kamayadi, yangi qator ochiladi. kg yoki dona ota bilan bir xil.',
@@ -671,25 +693,31 @@ const uz_latin: T = {
   custDebtPayInvalid: 'Summani tekshiring (0 dan katta, qoldiqdan oshmasin)',
   custDebtPayNoDebt: 'Bu mijozda qarz yo‘q',
 
-  suppTitle: 'Postavchiklar',
+  suppTitle: 'Ko‘cha obyektlari',
   suppIntro:
-    'Bu yerda tashqi yetkazib beruvchilarni ro‘yxatga olasiz. «Xarid»da ombordagi ota mahsulotni tanlab, kirim miqdorini shu qator qoldig‘iga qo‘shasiz.',
-  suppName: 'Yetkazib beruvchi',
+    'Bu yerda ko‘cha obyektlarini ro‘yxatga olasiz. «Xarid»da ombordagi mahsulot qatorini tanlab, kirim miqdorini shu qator qoldig‘iga qo‘shasiz.',
+  suppName: 'Ko‘cha obyekti',
   suppPhone: 'Telefon',
   suppAddress: 'Manzil',
-  suppAdd: 'Yangi postavchik',
-  suppEdit: 'Postavchikni tahrirlash',
+  suppAdd: 'Yangi ko‘cha obyekti',
+  suppEdit: 'Ko‘cha obyektini tahrirlash',
   suppSearchPlaceholder: 'Nom yoki telefon...',
-  suppDeleteConfirm: 'Postavchikni o‘chirishni tasdiqlaysizmi? Ombordagi yozuvlar saqlanadi.',
+  suppDeleteConfirm: 'Ko‘cha obyektini o‘chirishni tasdiqlaysizmi? Ombordagi yozuvlar saqlanadi.',
   suppPurchase: 'Xarid',
-  suppPurchasePickSupplier: 'Postavchikni tanlang',
+  suppPurchasePickSupplier: 'Ko‘cha obyektini tanlang',
   suppPurchasePickParent: 'Ombordagi mahsulot',
   suppNoParentProducts: 'Omborda mahsulot yo‘q. Avval «Ombor» sahifasidan mahsulot qo‘shing.',
   suppPurchasePcsWhole: 'Dona birligi: faqat butun son (masalan 5).',
   suppLineTotal: 'Jami',
+  suppPurchaseLinesTitle: 'Mahsulot qatorlari',
+  suppAddPurchaseLine: 'Yana qator (+)',
+  suppPurchaseSessionQtyHint:
+    'Qavsda — shu xaridda ushbu mahsulotdan olingan jami miqdor (ombor qoldig‘i emas).',
+  suppByProductSummary: 'Mahsulot bo‘yicha jami',
+  suppPurchaseGrandTotal: 'Umumiy jami',
   suppPaidAmount: 'To‘langan (so‘m)',
   suppOnCredit: 'Qarzga olish (to‘liq to‘lanmagan qismi qarz)',
-  suppDebtPreview: 'Postavchikka qarz',
+  suppDebtPreview: 'Ko‘cha obyektiga qarz',
   suppPaidMustEqualTotal: 'Naqd: to‘langan summa jamiga teng bo‘lishi kerak.',
   suppPaidExceedsTotal: 'To‘langan summa jamidan oshmasligi kerak.',
   suppHistoryColPaid: 'To‘langan',
@@ -702,26 +730,37 @@ const uz_latin: T = {
   suppPurchaseSubmit: 'Omborga kirim',
   suppPurchaseSuccess: 'Omborga muvaffaqiyatli kirim qilindi',
   suppPricePerUnit: '1 birlik narxi (so‘m, ixtiyoriy)',
-  whSourceSupplier: 'Postavchik',
+  whSourceSupplier: 'Ko‘cha obyekti',
   suppTabSuppliers: 'Ro‘yxat',
   suppTabHistory: 'Xaridlar tarixi',
-  suppHistorySearch: 'Mahsulot, postavchik...',
-  suppHistoryFilterSupplier: 'Postavchik',
+  suppHistorySearch: 'Mahsulot, ko‘cha obyekti...',
+  suppHistoryFilterSupplier: 'Ko‘cha obyekti',
   suppHistoryAllSuppliers: 'Hammasi',
   suppHistoryColDate: 'Sana',
-  suppHistoryColSupplier: 'Postavchik',
+  suppHistoryColSupplier: 'Ko‘cha obyekti',
   suppHistoryColProduct: 'Mahsulot',
+  suppHistoryColProducts: 'Mahsulotlar',
   suppHistoryColCategory: 'Kategoriya',
+  suppHistoryProductCount: 'ta mahsulot',
   suppHistoryColQty: 'Miqdor',
   suppHistoryColTotal: 'Jami (so‘m)',
   suppHistoryNoData: 'Hozircha xarid yozuvi yo‘q',
   suppHistoryDeletedSupplier: 'o‘chirilgan',
+  suppEditPurchaseTitle: 'Xaridni tahrirlash',
+  suppPurchaseUpdated: 'Xarid yangilandi, ombor moslashtirildi',
+  suppPurchaseDeleted: 'Xarid o‘chirildi, ombor qaytarildi',
+  suppDeletePurchaseConfirm:
+    'Ushbu xarid tarixdan o‘chiriladi va ombordagi miqdor kamayadi. Davom etasizmi?',
+  suppPurchaseCannotReverse:
+    'Omborda yetarli qoldiq yo‘q (qismi sotilgan bo‘lishi mumkin). Miqdorni kamaytiring yoki avval sotuvni tekshiring.',
+  suppPurchaseReverseHint:
+    'Saqlash yoki o‘chirishda eski kirim miqdori ombordan ayiriladi, yangi qiymat qo‘llanadi.',
   suppSupplierPurchasesDialogDesc:
-    'Bu postavchikdan olingan mahsulotlar: sana, miqdor, jami, to‘langan va qarz.',
+    'Bu ko‘cha obyektidan olingan mahsulotlar: sana, miqdor, jami, to‘langan va qarz.',
   suppOpenInHistoryTab: 'Xaridlar tarixida ochish',
   suppTabDebts: 'Qarzlar',
   suppDebtIntro:
-    'Qarzga olingan xaridlar bo‘yicha qoldiq. Postavchikka naqd berilgan summani bu yerda qayd eting — qoldiq kamayadi.',
+    'Qarzga olingan xaridlar bo‘yicha qoldiq. Ko‘cha obyektiga naqd berilgan summani bu yerda qayd eting — qoldiq kamayadi.',
   suppDebtColRemaining: 'Qoldiq qarz',
   suppDebtPayBtn: 'To‘lash',
   suppDebtPayDialogTitle: 'Qarzni to‘lash',
@@ -731,13 +770,13 @@ const uz_latin: T = {
   suppDebtPaySubmit: 'To‘lovni saqlash',
   suppDebtPaySuccess: 'To‘lov qayd etildi',
   suppDebtExceedsRemaining: 'Summa qoldiq qarzdan oshmasligi kerak.',
-  suppDebtNoSuppliers: 'Postavchiklar yo‘q',
+  suppDebtNoSuppliers: 'Ko‘cha obyektlari yo‘q',
   suppDebtRepayHistory: 'Qarz to‘lovlari tarixi',
   suppDebtRepayColDate: 'Sana',
-  suppDebtRepayColSupplier: 'Postavchik',
+  suppDebtRepayColSupplier: 'Ko‘cha obyekti',
   suppDebtRepayColAmount: 'Summa',
   suppDebtOrphanBanner:
-    'O‘chirilgan postavchik bilan bog‘langan xaridlarda qarz qoldi (bu summani bu yerda to‘lab bo‘lmaydi):',
+    'O‘chirilgan ko‘cha obyekti bilan bog‘langan xaridlarda qarz qoldi (bu summani bu yerda to‘lab bo‘lmaydi):',
 
   expTitle: 'Chiqim',
   expIntro:
@@ -846,6 +885,9 @@ const uz_latin: T = {
   posCancelEdit: 'Bekor qilish',
   posSaleUpdated: 'Sotuv yangilandi',
   posAddOrderLine: 'Qator qo‘shish',
+  posDeleteOrderConfirm:
+    'Ushbu sotuv tarixdan o‘chiriladi. Ombor miqdori va mijoz qarzi qayta hisoblanadi. Davom etasizmi?',
+  posOrderDeleted: 'Sotuv o‘chirildi',
 
   navDateFrom: 'Dan',
   navDateTo: 'Gacha',
@@ -871,6 +913,7 @@ const uz_latin: T = {
   authProfileDesc: 'Joriy parolingizni kiriting. Yangi login yoki parolni ixtiyoriy yangilang.',
   authCurrentPassword: 'Joriy parol',
   authNewLoginOptional: 'Yangi login (ixtiyoriy)',
+  authLoginCyrillicHint: 'Lotin yoki kirill — masalan: admin yoki Админ',
   authNewPasswordOptional: 'Yangi parol (ixtiyoriy)',
   authNewPasswordRepeat: 'Yangi parolni takrorlang',
   authSaveCredentials: 'Saqlash',
@@ -886,6 +929,7 @@ const uz_latin: T = {
     'Login va parol bilan tizimga kiradi. Lavozim va qaysi sahifalar ochiq bo‘lishi shu yerda belgilanadi.',
   usersFullName: 'F.I.Sh.',
   usersLogin: 'Login yoki telefon (login)',
+  usersLoginCyrillicHint: 'Lotin yoki kirill (2–64 belgi)',
   usersPassword: 'Parol',
   usersPasswordOptional: 'O‘zgartirmasangiz, bo‘sh qoldiring',
   usersJobTitles: 'Lavozimlar',
@@ -940,11 +984,11 @@ const uz_latin: T = {
   statKpiMargin: 'Foyda darajasi',
   statKpiMarginHint: 'Sof foyda / tushum',
   statSectionMoney: 'Pul harakati',
-  statSectionMoneyDesc: 'Sotuv, postavchik, chiqimlar va qarz qoldiqlari.',
+  statSectionMoneyDesc: 'Sotuv, ko‘cha obyektlari, chiqimlar va qarz qoldiqlari.',
   statMoneySalesIn: 'Sotuvdan kirim',
-  statMoneyPurchases: 'Postavchikdan jami xarid',
-  statMoneyPaidSuppliers: 'Postavchikka toʻlangan',
-  statMoneySupplierDebt: 'Postavchikka qarz qoldigʻi',
+  statMoneyPurchases: 'Ko‘cha obyektidan jami xarid',
+  statMoneyPaidSuppliers: 'Ko‘cha obyektiga to‘langan',
+  statMoneySupplierDebt: 'Ko‘cha obyektiga qarz qoldigʻi',
   statMoneyExpenses: 'Korxona chiqimlari (Chiqim)',
   statMoneyCustomerSpent: 'Klientlar jami xaridi',
   statSectionOps: 'Operatsiyalar',
@@ -952,7 +996,7 @@ const uz_latin: T = {
   statOpsOrders: 'Sotuv operatsiyalari',
   statOpsAvgOrder: 'Oʻrtacha buyurtma',
   statOpsActiveCustomers: 'Faol klientlar',
-  statOpsActiveSuppliers: 'Faol postavchiklar',
+  statOpsActiveSuppliers: 'Faol ko‘cha obyektlari',
   statOpsItemsSold: 'Sotilgan mahsulot (kg)',
   statSectionTrend: 'Sotuv dinamikasi',
   statSectionTrendDesc: 'Kunlik tushum dinamikasi.',
@@ -965,11 +1009,11 @@ const uz_latin: T = {
   statSectionTopProductsDesc: 'TOP-5 mahsulot — sof foyda boʻyicha.',
   statSectionTopCustomers: 'Eng faol klientlar',
   statSectionTopCustomersDesc: 'TOP-5 klient — xarid summasi boʻyicha.',
-  statSectionTopSuppliers: 'Eng katta postavchiklar',
-  statSectionTopSuppliersDesc: 'TOP-5 postavchik — xarid summasi boʻyicha.',
+  statSectionTopSuppliers: 'Eng katta ko‘cha obyektlari',
+  statSectionTopSuppliersDesc: 'TOP-5 ko‘cha obyekti — xarid summasi boʻyicha.',
   statColProduct: 'Mahsulot',
   statColCustomer: 'Klient',
-  statColSupplier: 'Postavchik',
+  statColSupplier: 'Ko‘cha obyekti',
   statColRevenue: 'Tushum',
   statColProfit: 'Foyda',
   statColMargin: 'Marja',
@@ -999,8 +1043,8 @@ const uz_cyrillic: T = {
   navSorting: 'Саралаш',
   navWarehouse: 'Омбор',
   navSales: 'Сотув',
-  navCustomers: 'Клиентлар',
-  navSuppliers: 'Поставчиклар',
+  navCustomers: 'Клиентлар (сотиш)',
+  navSuppliers: 'Кўча объектлари (олиш)',
   navExpenses: 'Чиқим',
   navSystemUsers: 'Тизим фойдаланувчилари',
   navSettings: 'Созламалар',
@@ -1037,7 +1081,10 @@ const uz_cyrillic: T = {
   dashTotalSold: 'Сотилган',
   dashRecentActivity: 'Сўнгги ҳаракатлар',
   dashWarehouseSummary: 'Омбор хулосаси',
+  dashWarehouseStockKg: 'Омбордаги жами',
   dashEmpty: 'Ҳозирча ҳеч қандай маълумот йўқ',
+  fontSizeSmaller: 'Шрифтни кичиклаштириш',
+  fontSizeLarger: 'Шрифтни катталаштириш',
 
   sortingTitle: 'Саралаш жараёни',
   sortingIntake: 'Янги кирим',
@@ -1072,12 +1119,13 @@ const uz_cyrillic: T = {
   whProductName: 'Маҳсулот номи',
   whCategory: 'Категория',
   whCategoryPlaceholder: 'Масалан: Пластик қоплар',
+  whCategoryIconSamples: 'Намуна белгилар',
   whQuantity: 'Миқдор',
   whIncomeDate: 'Кирим санаси',
   whOutcome: 'Чиқим',
   whAddProduct: 'Маҳсулот қўшиш',
   whAddExternalHint:
-    'Бу ерда ташқи/кўчма омбор кирими (ота) ва бир вақтда ихтиёрий ажратилган турлар. Харид — «Поставчиклар».',
+    'Бу ерда ташқи/кўчма омбор кирими (ота) ва бир вақтда ихтиёрий ажратилган турлар. Харид — «Кўча объектлари».',
   whEditProduct: 'Маҳсулотни таҳрирлаш',
   whDeleteConfirm: 'Маҳсулотни ростдан ҳам ўчирмоқчимисиз?',
   whSearchPlaceholder: 'Ном ёки категория...',
@@ -1085,15 +1133,12 @@ const uz_cyrillic: T = {
   whFilterAll: 'Барча категориялар',
   whTabStock: 'Омборда',
   whTabSold: 'Сотилган',
-  whTabUsed: 'Ишлатилган',
   whSell: 'Сотиш',
   whUseInProduction: 'Ишлатиш',
   whSellQuantity: 'Сотиладиган миқдор',
   whBuyer: 'Харидор',
   whPricePerUnit: '1 бирлик нархи',
   whSellSubmit: 'Сотувни қайд этиш',
-  whUseSubmit: 'Ишлатишни қайд этиш',
-  whUseReason: 'Ишлатиш сабаби',
   whAllocateSub: 'Ажратиш',
   whAllocateSubDesc:
     'Бу харид эмас: бор ота захирасидан сараланган тур ажратилади — ота миқдори камаяди, янги қатор очилади. кг ёки дона ота билан бир хил.',
@@ -1155,25 +1200,31 @@ const uz_cyrillic: T = {
   custDebtPayInvalid: 'Суммани текширинг (0 дан катта, қолдиқдан ошмасин)',
   custDebtPayNoDebt: 'Бу мижозда қарз йўқ',
 
-  suppTitle: 'Поставчиклар',
+  suppTitle: 'Кўча объектлари',
   suppIntro:
-    'Бу ерда ташқи етказиб берувчиларни рўйхатга оласиз. «Харид»да омбордаги ота маҳсулотни танлаб, кирим миқдорини шу қатор қолдиғига қўшасиз.',
-  suppName: 'Етказиб берувчи',
+    'Бу ерда кўча объектларини рўйхатга оласиз. «Харид»да омбордаги маҳсулот қаторини танлаб, кирим миқдорини шу қатор қолдиғига қўшасиз.',
+  suppName: 'Кўча объекти',
   suppPhone: 'Телефон',
   suppAddress: 'Манзил',
-  suppAdd: 'Янги поставчик',
-  suppEdit: 'Поставчикни таҳрирлаш',
+  suppAdd: 'Янги кўча объекти',
+  suppEdit: 'Кўча объектини таҳрирлаш',
   suppSearchPlaceholder: 'Ном ёки телефон...',
-  suppDeleteConfirm: 'Поставчикни ўчиришни тасдиқлайсизми? Омбордаги ёзувлар сақланади.',
+  suppDeleteConfirm: 'Кўча объектини ўчиришни тасдиқлайсизми? Омбордаги ёзувлар сақланади.',
   suppPurchase: 'Харид',
-  suppPurchasePickSupplier: 'Поставчикни танланг',
+  suppPurchasePickSupplier: 'Кўча объектини танланг',
   suppPurchasePickParent: 'Омбордаги маҳсулот',
   suppNoParentProducts: 'Омборда маҳсулот йўқ. Аввал «Омбор» саҳифасидан қўшинг.',
   suppPurchasePcsWhole: 'Дона бирлиги: фақат бутун сон (масалан 5).',
   suppLineTotal: 'Жами',
+  suppPurchaseLinesTitle: 'Маҳсулот қаторлари',
+  suppAddPurchaseLine: 'Яна қатор (+)',
+  suppPurchaseSessionQtyHint:
+    'Қавсда — шу харидда ушбу маҳсулотдан олинган жами миқдор (омбор қолдиғи эмас).',
+  suppByProductSummary: 'Маҳсулот бўйича жами',
+  suppPurchaseGrandTotal: 'Умумий жами',
   suppPaidAmount: 'Тўланган (сўм)',
   suppOnCredit: 'Қарзга олиш (тўлиқ тўланмаган қисми қарз)',
-  suppDebtPreview: 'Поставчикка қарз',
+  suppDebtPreview: 'Кўча объектига қарз',
   suppPaidMustEqualTotal: 'Нақд: тўланган сума жамига тенг бўлиши керак.',
   suppPaidExceedsTotal: 'Тўланган сума жамидан ошмаслиги керак.',
   suppHistoryColPaid: 'Тўланган',
@@ -1186,26 +1237,37 @@ const uz_cyrillic: T = {
   suppPurchaseSubmit: 'Омборга кирим',
   suppPurchaseSuccess: 'Омборга муваффақиятли кирим қилинди',
   suppPricePerUnit: '1 бирлик нархи (сўм, ихтиёрий)',
-  whSourceSupplier: 'Поставчик',
+  whSourceSupplier: 'Кўча объекти',
   suppTabSuppliers: 'Рўйхат',
   suppTabHistory: 'Харидлар тарихи',
-  suppHistorySearch: 'Маҳсулот, поставчик...',
-  suppHistoryFilterSupplier: 'Поставчик',
+  suppHistorySearch: 'Маҳсулот, кўча объекти...',
+  suppHistoryFilterSupplier: 'Кўча объекти',
   suppHistoryAllSuppliers: 'Ҳаммаси',
   suppHistoryColDate: 'Сана',
-  suppHistoryColSupplier: 'Поставчик',
+  suppHistoryColSupplier: 'Кўча объекти',
   suppHistoryColProduct: 'Маҳсулот',
+  suppHistoryColProducts: 'Маҳсулотлар',
   suppHistoryColCategory: 'Категория',
+  suppHistoryProductCount: 'та маҳсулот',
   suppHistoryColQty: 'Миқдор',
   suppHistoryColTotal: 'Жами (сўм)',
   suppHistoryNoData: 'Ҳозирча харид ёзуви йўқ',
   suppHistoryDeletedSupplier: 'ўчирилган',
+  suppEditPurchaseTitle: 'Харидни таҳрирлаш',
+  suppPurchaseUpdated: 'Харид янгиланди, омбор мослаштирилди',
+  suppPurchaseDeleted: 'Харид ўчирилди, омбор қайтарилди',
+  suppDeletePurchaseConfirm:
+    'Ушбу харид тарихдан ўчирилади ва омбордаги миқдор камаяди. Давом этасизми?',
+  suppPurchaseCannotReverse:
+    'Омборда етарли қолдиқ йўқ (қисми сотилган бўлиши мумкин). Миқдорни камайтиринг.',
+  suppPurchaseReverseHint:
+    'Сақлаш ёки ўчиришда эски кирим миқдори омбордан айрилади, янги қиймат қўлланилади.',
   suppSupplierPurchasesDialogDesc:
-    'Бу поставчикдан олинган маҳсулотлар: сана, миқдор, жами, тўланган ва қарз.',
+    'Бу кўча объектидан олинган маҳсулотлар: сана, миқдор, жами, тўланган ва қарз.',
   suppOpenInHistoryTab: 'Харидлар тарихида очиш',
   suppTabDebts: 'Қарзлар',
   suppDebtIntro:
-    'Қарзга олинган харидлар бўйича қолдиқ. Поставчикка нақд берилган суммани бу ерда қайд этинг — қолдиқ камаяди.',
+    'Қарзга олинган харидлар бўйича қолдиқ. Кўча объектига нақд берилган суммани бу ерда қайд этинг — қолдиқ камаяди.',
   suppDebtColRemaining: 'Қолдиқ қарз',
   suppDebtPayBtn: 'Тўлаш',
   suppDebtPayDialogTitle: 'Қарзни тўлаш',
@@ -1215,13 +1277,13 @@ const uz_cyrillic: T = {
   suppDebtPaySubmit: 'Тўловни сақлаш',
   suppDebtPaySuccess: 'Тўлов қайд этилди',
   suppDebtExceedsRemaining: 'Сумма қолдиқ қарздан ошмаслиги керак.',
-  suppDebtNoSuppliers: 'Поставчиклар йўқ',
+  suppDebtNoSuppliers: 'Кўча объектлари йўқ',
   suppDebtRepayHistory: 'Қарз тўловлари тарихи',
   suppDebtRepayColDate: 'Сана',
-  suppDebtRepayColSupplier: 'Поставчик',
+  suppDebtRepayColSupplier: 'Кўча объекти',
   suppDebtRepayColAmount: 'Сумма',
   suppDebtOrphanBanner:
-    'Ўчирилган поставчик билан боғланган харидларда қарз қолди (бу суммани бу ерда тўлаб бўлмайди):',
+    'Ўчирилган кўча объекти билан боғланган харидларда қарз қолди (бу суммани бу ерда тўлаб бўлмайди):',
 
   expTitle: 'Чиқим',
   expIntro:
@@ -1331,6 +1393,9 @@ const uz_cyrillic: T = {
   posCancelEdit: 'Бекор қилиш',
   posSaleUpdated: 'Сотув янгиланди',
   posAddOrderLine: 'Қатор қўшиш',
+  posDeleteOrderConfirm:
+    'Ушбу сотув тарихдан ўчирилади. Омбор миқдори ва мижоз қарзи қайта ҳисобланади. Давом этасизми?',
+  posOrderDeleted: 'Сотув ўчирилди',
 
   navDateFrom: 'Дан',
   navDateTo: 'Гача',
@@ -1356,6 +1421,7 @@ const uz_cyrillic: T = {
   authProfileDesc: 'Жорий паролингизни киритинг. Янги логин ёки паролни ихтиёрий янгиланг.',
   authCurrentPassword: 'Жорий парол',
   authNewLoginOptional: 'Янги логин (ихтиёрий)',
+  authLoginCyrillicHint: 'Лотин ёки кирилл — масалан: admin ёки Админ',
   authNewPasswordOptional: 'Янги парол (ихтиёрий)',
   authNewPasswordRepeat: 'Янги паролни такрорланг',
   authSaveCredentials: 'Сақлаш',
@@ -1371,6 +1437,7 @@ const uz_cyrillic: T = {
     'Логин ва парол билан тизимга кириди. Лавозим ва қайси саҳифалар очиқ бўлиши шу ерда белгиланади.',
   usersFullName: 'Ф.И.Ш.',
   usersLogin: 'Логин ёки телефон (логин)',
+  usersLoginCyrillicHint: 'Лотин ёки кирилл (2–64 белги)',
   usersPassword: 'Парол',
   usersPasswordOptional: 'Ўзгартирмасангиз, бўш қолдиринг',
   usersJobTitles: 'Лавозимлар',
@@ -1425,11 +1492,11 @@ const uz_cyrillic: T = {
   statKpiMargin: 'Фойда даражаси',
   statKpiMarginHint: 'Соф фойда / тушум',
   statSectionMoney: 'Пул ҳаракати',
-  statSectionMoneyDesc: 'Сотув, поставчик, чиқимлар ва қарз қолдиқлари.',
+  statSectionMoneyDesc: 'Сотув, кўча объектлари, чиқимлар ва қарз қолдиқлари.',
   statMoneySalesIn: 'Сотувдан кирим',
-  statMoneyPurchases: 'Поставчикдан жами харид',
-  statMoneyPaidSuppliers: 'Поставчикка тўланган',
-  statMoneySupplierDebt: 'Поставчикка қарз қолдиғи',
+  statMoneyPurchases: 'Кўча объектидан жами харид',
+  statMoneyPaidSuppliers: 'Кўча объектига тўланган',
+  statMoneySupplierDebt: 'Кўча объектига қарз қолдиғи',
   statMoneyExpenses: 'Корхона чиқимлари (Чиқим)',
   statMoneyCustomerSpent: 'Клиентлар жами хариди',
   statSectionOps: 'Операциялар',
@@ -1437,7 +1504,7 @@ const uz_cyrillic: T = {
   statOpsOrders: 'Сотув операциялари',
   statOpsAvgOrder: 'Ўртача буюртма',
   statOpsActiveCustomers: 'Фаол клиентлар',
-  statOpsActiveSuppliers: 'Фаол поставчиклар',
+  statOpsActiveSuppliers: 'Фаол кўча объектлари',
   statOpsItemsSold: 'Сотилган маҳсулот (кг)',
   statSectionTrend: 'Сотув динамикаси',
   statSectionTrendDesc: 'Кунлик тушум динамикаси.',
@@ -1450,11 +1517,11 @@ const uz_cyrillic: T = {
   statSectionTopProductsDesc: 'ТОП-5 маҳсулот — соф фойда бўйича.',
   statSectionTopCustomers: 'Энг фаол клиентлар',
   statSectionTopCustomersDesc: 'ТОП-5 клиент — харид суммаси бўйича.',
-  statSectionTopSuppliers: 'Энг катта поставчиклар',
-  statSectionTopSuppliersDesc: 'ТОП-5 поставчик — харид суммаси бўйича.',
+  statSectionTopSuppliers: 'Энг катта кўча объектлари',
+  statSectionTopSuppliersDesc: 'ТОП-5 кўча объекти — харид суммаси бўйича.',
   statColProduct: 'Маҳсулот',
   statColCustomer: 'Клиент',
-  statColSupplier: 'Поставчик',
+  statColSupplier: 'Кўча объекти',
   statColRevenue: 'Тушум',
   statColProfit: 'Фойда',
   statColMargin: 'Маржа',
@@ -1484,8 +1551,8 @@ const ru: T = {
   navSorting: 'Сортировка',
   navWarehouse: 'Склад',
   navSales: 'Продажи',
-  navCustomers: 'Клиенты',
-  navSuppliers: 'Поставщики',
+  navCustomers: 'Клиенты (продажа)',
+  navSuppliers: 'Уличные объекты (закупка)',
   navExpenses: 'Расходы',
   navSystemUsers: 'Пользователи системы',
   navSettings: 'Настройки',
@@ -1522,7 +1589,10 @@ const ru: T = {
   dashTotalSold: 'Продано',
   dashRecentActivity: 'Последние действия',
   dashWarehouseSummary: 'Сводка склада',
+  dashWarehouseStockKg: 'Всего на складе',
   dashEmpty: 'Пока нет данных',
+  fontSizeSmaller: 'Уменьшить шрифт',
+  fontSizeLarger: 'Увеличить шрифт',
 
   sortingTitle: 'Процесс сортировки',
   sortingIntake: 'Новый приём',
@@ -1557,12 +1627,13 @@ const ru: T = {
   whProductName: 'Название',
   whCategory: 'Категория',
   whCategoryPlaceholder: 'Например: Пластиковые мешки',
+  whCategoryIconSamples: 'Примеры иконок',
   whQuantity: 'Количество',
   whIncomeDate: 'Дата поступления',
   whOutcome: 'Расход',
   whAddProduct: 'Добавить товар',
   whAddExternalHint:
-    'Здесь внешний приход (родитель) и при необходимости выделенные типы в той же форме. Закупка — в разделе «Поставщики».',
+    'Здесь внешний приход (родитель) и при необходимости выделенные типы в той же форме. Закупка — в разделе «Уличные объекты».',
   whEditProduct: 'Изменить товар',
   whDeleteConfirm: 'Действительно удалить товар?',
   whSearchPlaceholder: 'Название или категория...',
@@ -1570,15 +1641,12 @@ const ru: T = {
   whFilterAll: 'Все категории',
   whTabStock: 'На складе',
   whTabSold: 'Продано',
-  whTabUsed: 'Использовано',
   whSell: 'Продать',
   whUseInProduction: 'Использовать',
   whSellQuantity: 'Кол-во к продаже',
   whBuyer: 'Покупатель',
   whPricePerUnit: 'Цена за ед.',
   whSellSubmit: 'Зафиксировать продажу',
-  whUseSubmit: 'Зафиксировать расход',
-  whUseReason: 'Причина',
   whAllocateSub: 'Разделить',
   whAllocateSubDesc:
     'Это не закупка: из имеющегося родительского остатка выделяется отсортированный тип — у родителя количество уменьшится, появится новая строка. Единица та же: кг или шт.',
@@ -1640,25 +1708,31 @@ const ru: T = {
   custDebtPayInvalid: 'Проверьте сумму (больше 0, не больше остатка)',
   custDebtPayNoDebt: 'У этого клиента нет долга',
 
-  suppTitle: 'Поставщики',
+  suppTitle: 'Уличные объекты',
   suppIntro:
-    'Здесь ведёте список внешних поставщиков. В «Закупке» выберите родительскую позицию на складе — количество прихода добавится к её остатку.',
-  suppName: 'Поставщик',
+    'Здесь ведёте список уличных объектов. В «Закупке» выберите позицию на складе — количество прихода добавится к её остатку.',
+  suppName: 'Уличный объект',
   suppPhone: 'Телефон',
   suppAddress: 'Адрес',
-  suppAdd: 'Новый поставщик',
-  suppEdit: 'Изменить поставщика',
+  suppAdd: 'Новый уличный объект',
+  suppEdit: 'Изменить уличный объект',
   suppSearchPlaceholder: 'Имя или телефон...',
-  suppDeleteConfirm: 'Удалить поставщика? Записи на складе сохранятся.',
+  suppDeleteConfirm: 'Удалить уличный объект? Записи на складе сохранятся.',
   suppPurchase: 'Закупка',
-  suppPurchasePickSupplier: 'Выберите поставщика',
+  suppPurchasePickSupplier: 'Выберите уличный объект',
   suppPurchasePickParent: 'Позиция на складе',
   suppNoParentProducts: 'На складе нет товаров. Сначала добавьте товар на странице «Склад».',
   suppPurchasePcsWhole: 'Единица «шт.»: только целое число (например 5).',
   suppLineTotal: 'Итого',
+  suppPurchaseLinesTitle: 'Строки товаров',
+  suppAddPurchaseLine: 'Ещё строка (+)',
+  suppPurchaseSessionQtyHint:
+    'В скобках — суммарно взято в этой закупке (не остаток на складе).',
+  suppByProductSummary: 'Итого по товару',
+  suppPurchaseGrandTotal: 'Общий итог',
   suppPaidAmount: 'Оплачено (сум)',
-  suppOnCredit: 'В кредит (недоплата — долг поставщику)',
-  suppDebtPreview: 'Долг поставщику',
+  suppOnCredit: 'В кредит (недоплата — долг уличному объекту)',
+  suppDebtPreview: 'Долг уличному объекту',
   suppPaidMustEqualTotal: 'Без кредита: оплаченная сумма должна равняться итогу.',
   suppPaidExceedsTotal: 'Оплачено не может быть больше итога.',
   suppHistoryColPaid: 'Оплачено',
@@ -1671,26 +1745,37 @@ const ru: T = {
   suppPurchaseSubmit: 'Провести на склад',
   suppPurchaseSuccess: 'Приход на склад выполнен',
   suppPricePerUnit: 'Цена за ед. (сум, необязательно)',
-  whSourceSupplier: 'Поставщик',
+  whSourceSupplier: 'Уличный объект',
   suppTabSuppliers: 'Список',
   suppTabHistory: 'История закупок',
-  suppHistorySearch: 'Товар, поставщик...',
-  suppHistoryFilterSupplier: 'Поставщик',
+  suppHistorySearch: 'Товар, уличный объект...',
+  suppHistoryFilterSupplier: 'Уличный объект',
   suppHistoryAllSuppliers: 'Все',
   suppHistoryColDate: 'Дата',
-  suppHistoryColSupplier: 'Поставщик',
+  suppHistoryColSupplier: 'Уличный объект',
   suppHistoryColProduct: 'Товар',
+  suppHistoryColProducts: 'Товары',
   suppHistoryColCategory: 'Категория',
+  suppHistoryProductCount: 'поз.',
   suppHistoryColQty: 'Кол-во',
   suppHistoryColTotal: 'Сумма (сум)',
   suppHistoryNoData: 'Пока нет записей о закупках',
   suppHistoryDeletedSupplier: 'удалён',
+  suppEditPurchaseTitle: 'Изменить закупку',
+  suppPurchaseUpdated: 'Закупка обновлена, склад скорректирован',
+  suppPurchaseDeleted: 'Закупка удалена, количество на складе уменьшено',
+  suppDeletePurchaseConfirm:
+    'Запись будет удалена из истории, количество на складе уменьшится. Продолжить?',
+  suppPurchaseCannotReverse:
+    'На складе недостаточно остатка (часть могла быть продана). Уменьшите количество.',
+  suppPurchaseReverseHint:
+    'При сохранении или удалении старый приход вычитается со склада, затем применяется новое значение.',
   suppSupplierPurchasesDialogDesc:
-    'Закупки у этого поставщика: дата, количество, сумма, оплачено и долг.',
+    'Закупки у этого уличного объекта: дата, количество, сумма, оплачено и долг.',
   suppOpenInHistoryTab: 'Открыть в истории закупок',
   suppTabDebts: 'Долги',
   suppDebtIntro:
-    'Остаток долга по закупкам в кредит. Здесь фиксируйте оплату поставщику наличными — остаток уменьшится.',
+    'Остаток долга по закупкам в кредит. Здесь фиксируйте оплату уличному объекту наличными — остаток уменьшится.',
   suppDebtColRemaining: 'Остаток долга',
   suppDebtPayBtn: 'Оплатить',
   suppDebtPayDialogTitle: 'Погашение долга',
@@ -1700,13 +1785,13 @@ const ru: T = {
   suppDebtPaySubmit: 'Сохранить оплату',
   suppDebtPaySuccess: 'Оплата записана',
   suppDebtExceedsRemaining: 'Сумма не может превышать остаток долга.',
-  suppDebtNoSuppliers: 'Нет поставщиков',
+  suppDebtNoSuppliers: 'Нет уличных объектов',
   suppDebtRepayHistory: 'История погашений',
   suppDebtRepayColDate: 'Дата',
-  suppDebtRepayColSupplier: 'Поставщик',
+  suppDebtRepayColSupplier: 'Уличный объект',
   suppDebtRepayColAmount: 'Сумма',
   suppDebtOrphanBanner:
-    'Остался долг по закупкам у удалённого поставщика (погасить здесь нельзя):',
+    'Остался долг по закупкам у удалённого уличного объекта (погасить здесь нельзя):',
 
   expTitle: 'Расходы',
   expIntro:
@@ -1815,6 +1900,9 @@ const ru: T = {
   posCancelEdit: 'Отмена',
   posSaleUpdated: 'Продажа обновлена',
   posAddOrderLine: 'Добавить строку',
+  posDeleteOrderConfirm:
+    'Эта продажа будет удалена из истории. Количество на складе и долг клиента будут пересчитаны. Продолжить?',
+  posOrderDeleted: 'Продажа удалена',
 
   navDateFrom: 'С',
   navDateTo: 'По',
@@ -1840,6 +1928,7 @@ const ru: T = {
   authProfileDesc: 'Введите текущий пароль. Новый логин или пароль — по желанию.',
   authCurrentPassword: 'Текущий пароль',
   authNewLoginOptional: 'Новый логин (необязательно)',
+  authLoginCyrillicHint: 'Латиница или кириллица — например: admin или Админ',
   authNewPasswordOptional: 'Новый пароль (необязательно)',
   authNewPasswordRepeat: 'Повторите новый пароль',
   authSaveCredentials: 'Сохранить',
@@ -1855,6 +1944,7 @@ const ru: T = {
     'Вход в систему по логину и паролю. Здесь задаются должность и доступные разделы.',
   usersFullName: 'ФИО',
   usersLogin: 'Логин или телефон (логин)',
+  usersLoginCyrillicHint: 'Латиница или кириллица (2–64 символа)',
   usersPassword: 'Пароль',
   usersPasswordOptional: 'Оставьте пустым, если не меняете',
   usersJobTitles: 'Должности',
@@ -1911,9 +2001,9 @@ const ru: T = {
   statSectionMoney: 'Движение денег',
   statSectionMoneyDesc: 'Продажи, закупки, расходы и долги.',
   statMoneySalesIn: 'Поступление от продаж',
-  statMoneyPurchases: 'Закуплено у поставщиков',
-  statMoneyPaidSuppliers: 'Оплачено поставщикам',
-  statMoneySupplierDebt: 'Долг перед поставщиками',
+  statMoneyPurchases: 'Закуплено у уличных объектов',
+  statMoneyPaidSuppliers: 'Оплачено уличным объектам',
+  statMoneySupplierDebt: 'Долг уличным объектам',
   statMoneyExpenses: 'Расходы компании («Расходы»)',
   statMoneyCustomerSpent: 'Покупок клиентов всего',
   statSectionOps: 'Операции',
@@ -1921,7 +2011,7 @@ const ru: T = {
   statOpsOrders: 'Операции продаж',
   statOpsAvgOrder: 'Средний чек',
   statOpsActiveCustomers: 'Активные клиенты',
-  statOpsActiveSuppliers: 'Активные поставщики',
+  statOpsActiveSuppliers: 'Активные уличные объекты',
   statOpsItemsSold: 'Продано (кг)',
   statSectionTrend: 'Динамика продаж',
   statSectionTrendDesc: 'Дневная выручка.',
@@ -1934,11 +2024,11 @@ const ru: T = {
   statSectionTopProductsDesc: 'ТОП-5 товаров по чистой прибыли.',
   statSectionTopCustomers: 'Самые активные клиенты',
   statSectionTopCustomersDesc: 'ТОП-5 клиентов по сумме покупок.',
-  statSectionTopSuppliers: 'Крупнейшие поставщики',
-  statSectionTopSuppliersDesc: 'ТОП-5 поставщиков по сумме закупок.',
+  statSectionTopSuppliers: 'Крупнейшие уличные объекты',
+  statSectionTopSuppliersDesc: 'ТОП-5 уличных объектов по сумме закупок.',
   statColProduct: 'Товар',
   statColCustomer: 'Клиент',
-  statColSupplier: 'Поставщик',
+  statColSupplier: 'Уличный объект',
   statColRevenue: 'Выручка',
   statColProfit: 'Прибыль',
   statColMargin: 'Маржа',

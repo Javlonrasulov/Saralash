@@ -1,4 +1,4 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useApp } from '../i18n/app-context';
@@ -57,6 +57,22 @@ export function NavbarDateRangePicker() {
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, []);
+    useEffect(() => {
+        if (!open)
+            return;
+        const mq = window.matchMedia('(max-width: 639px)');
+        const lock = () => {
+            if (mq.matches)
+                document.documentElement.classList.add('overflow-hidden');
+        };
+        const unlock = () => document.documentElement.classList.remove('overflow-hidden');
+        lock();
+        mq.addEventListener('change', lock);
+        return () => {
+            mq.removeEventListener('change', lock);
+            unlock();
+        };
+    }, [open]);
     const syncInputsFromDraft = (from, to) => {
         setFromInput(formatYmdDisplay(from));
         setToInput(formatYmdDisplay(to));
@@ -203,34 +219,34 @@ export function NavbarDateRangePicker() {
         const hi = draftFrom <= draftTo ? draftTo : draftFrom;
         return ymd >= lo && ymd <= hi;
     };
-    return (_jsxs("div", { className: "relative shrink-0", ref: ref, children: [_jsxs("div", { className: "flex items-center gap-0.5", children: [_jsxs("button", { type: "button", onClick: () => setOpen((v) => !v), className: "flex h-9 max-w-[min(42vw,11rem)] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 sm:max-w-[14rem] sm:px-2.5 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600", children: [_jsx(CalendarIcon, { size: 14, className: "shrink-0 text-indigo-500" }), _jsx("span", { className: "truncate", children: triggerLabel })] }), filter.mode === 'range' && (_jsx("button", { type: "button", onClick: clearRange, title: t.navDateClearAria, className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 transition-colors hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400", children: _jsx(X, { size: 14 }) }))] }), open && (_jsxs("div", { className: "absolute right-0 top-full z-[85] mt-2 w-[min(calc(100vw-1.5rem),22rem)] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-300/40 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/50 sm:w-[22rem]", children: [_jsxs("div", { className: "flex flex-wrap gap-1.5", children: [_jsx("button", { type: "button", onClick: presetToday, className: "rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800", children: t.posDateRangeToday }), _jsx("button", { type: "button", onClick: presetWeek, className: "rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800", children: t.navDateThisWeek }), _jsx("button", { type: "button", onClick: presetMonth, className: "rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800", children: t.posDateRangeMonth }), _jsx("button", { type: "button", onClick: () => applyPreset({ mode: 'all' }), className: "rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800", children: t.posDateRangeAll })] }), _jsxs("div", { className: "mt-3 grid grid-cols-2 gap-2", children: [_jsxs("div", { children: [_jsx("p", { className: "mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-400", children: t.navDateFrom }), _jsx(Input, { value: fromInput, onChange: (e) => setFromInput(e.target.value), onFocus: () => {
-                                            setActiveField('from');
-                                            setPickHint('start');
-                                        }, onBlur: commitFromInput, className: cn('h-9 rounded-xl text-xs', activeField === 'from' && 'ring-2 ring-indigo-400/40 border-indigo-300') })] }), _jsxs("div", { children: [_jsx("p", { className: "mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-400", children: t.navDateTo }), _jsx(Input, { value: toInput, onChange: (e) => setToInput(e.target.value), onFocus: () => {
-                                            setActiveField('to');
-                                            setPickHint('end');
-                                        }, onBlur: commitToInput, className: cn('h-9 rounded-xl text-xs', activeField === 'to' && 'ring-2 ring-indigo-400/40 border-indigo-300') })] })] }), _jsxs("div", { className: "mt-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 dark:border-slate-800", children: [_jsx("button", { type: "button", className: "rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800", onClick: () => {
-                                    const d = new Date(viewYear, viewMonth - 1, 1);
-                                    setViewYear(d.getFullYear());
-                                    setViewMonth(d.getMonth());
-                                }, children: _jsx(ChevronLeft, { size: 18 }) }), _jsx("p", { className: "text-sm font-semibold capitalize text-slate-800 dark:text-white", children: monthTitle }), _jsx("button", { type: "button", disabled: !canGoNextMonth, className: "rounded-lg p-1 text-slate-500 hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-slate-800", onClick: () => {
-                                    if (!canGoNextMonth)
-                                        return;
-                                    const d = new Date(viewYear, viewMonth + 1, 1);
-                                    setViewYear(d.getFullYear());
-                                    setViewMonth(d.getMonth());
-                                }, children: _jsx(ChevronRight, { size: 18 }) })] }), _jsx("div", { className: "mt-2 grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium text-slate-400", children: weekdayLabels.map((w, i) => (_jsx("div", { className: "py-1", children: w }, i))) }), _jsx("div", { className: "mt-0.5 grid grid-cols-7 gap-0.5", children: cells.map((day, idx) => {
-                            if (day == null) {
-                                return _jsx("div", { className: "aspect-square" }, `e-${idx}`);
-                            }
-                            const ymd = ymdFromDate(new Date(viewYear, viewMonth, day));
-                            const isFuture = ymd > maxYmd;
-                            const isEdge = ymd === draftFrom || ymd === draftTo;
-                            const mid = inRangeVisual(ymd) && !isEdge && !isFuture;
-                            return (_jsx("button", { type: "button", disabled: isFuture, onClick: () => onDayClick(day), className: cn('aspect-square rounded-lg text-xs font-medium transition-colors', isFuture && 'cursor-not-allowed text-slate-300 opacity-35 dark:text-slate-600', !isFuture &&
-                                    isEdge &&
-                                    'bg-indigo-600 text-white shadow-sm dark:bg-indigo-500 dark:text-white', !isFuture && mid && 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200', !isFuture &&
-                                    !inRangeVisual(ymd) &&
-                                    'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'), children: day }, ymd));
-                        }) }), _jsxs("p", { className: "mt-2 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400", children: [_jsx(CalendarIcon, { size: 12, className: "shrink-0 opacity-70" }), pickHint === 'start' ? t.navDatePickStart : t.navDatePickEnd] }), _jsxs(Button, { type: "button", className: "mt-3 h-10 w-full rounded-xl", onClick: applyDraft, children: [t.navDateApply, " (", formatYmdDisplay(draftFrom), " \u2014 ", formatYmdDisplay(draftTo), ")"] })] }))] }));
+    return (_jsxs("div", { className: "relative shrink-0", ref: ref, children: [_jsxs("div", { className: "flex items-center gap-0.5", children: [_jsxs("button", { type: "button", onClick: () => setOpen((v) => !v), title: triggerLabel, "aria-label": triggerLabel, className: "flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 sm:w-auto sm:max-w-[14rem] sm:px-2.5 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600", children: [_jsx(CalendarIcon, { size: 14, className: "shrink-0 text-indigo-500" }), _jsx("span", { className: "hidden max-w-[10rem] truncate sm:inline", children: triggerLabel })] }), filter.mode === 'range' && (_jsx("button", { type: "button", onClick: clearRange, title: t.navDateClearAria, className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 transition-colors hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400", children: _jsx(X, { size: 14 }) }))] }), open && (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", className: "fixed inset-0 z-[84] bg-slate-900/30 sm:hidden", "aria-label": t.cancel, onClick: () => setOpen(false) }), _jsxs("div", { className: cn('fixed left-3 right-3 top-[4.5rem] z-[85] max-h-[min(32rem,calc(100dvh-5.5rem))] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-300/40 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/50', 'sm:absolute sm:inset-x-auto sm:right-0 sm:left-auto sm:top-full sm:mt-2 sm:max-h-none sm:w-[22rem] sm:overflow-visible'), children: [_jsxs("div", { className: "flex flex-wrap gap-1.5", children: [_jsx("button", { type: "button", onClick: presetToday, className: "rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800", children: t.posDateRangeToday }), _jsx("button", { type: "button", onClick: presetWeek, className: "rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800", children: t.navDateThisWeek }), _jsx("button", { type: "button", onClick: presetMonth, className: "rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800", children: t.posDateRangeMonth }), _jsx("button", { type: "button", onClick: () => applyPreset({ mode: 'all' }), className: "rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800", children: t.posDateRangeAll })] }), _jsxs("div", { className: "mt-3 grid grid-cols-2 gap-2", children: [_jsxs("div", { children: [_jsx("p", { className: "mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-400", children: t.navDateFrom }), _jsx(Input, { value: fromInput, onChange: (e) => setFromInput(e.target.value), onFocus: () => {
+                                                    setActiveField('from');
+                                                    setPickHint('start');
+                                                }, onBlur: commitFromInput, className: cn('h-9 rounded-xl text-xs', activeField === 'from' && 'ring-2 ring-indigo-400/40 border-indigo-300') })] }), _jsxs("div", { children: [_jsx("p", { className: "mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-400", children: t.navDateTo }), _jsx(Input, { value: toInput, onChange: (e) => setToInput(e.target.value), onFocus: () => {
+                                                    setActiveField('to');
+                                                    setPickHint('end');
+                                                }, onBlur: commitToInput, className: cn('h-9 rounded-xl text-xs', activeField === 'to' && 'ring-2 ring-indigo-400/40 border-indigo-300') })] })] }), _jsxs("div", { className: "mt-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-2 dark:border-slate-800", children: [_jsx("button", { type: "button", className: "rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800", onClick: () => {
+                                            const d = new Date(viewYear, viewMonth - 1, 1);
+                                            setViewYear(d.getFullYear());
+                                            setViewMonth(d.getMonth());
+                                        }, children: _jsx(ChevronLeft, { size: 18 }) }), _jsx("p", { className: "text-sm font-semibold capitalize text-slate-800 dark:text-white", children: monthTitle }), _jsx("button", { type: "button", disabled: !canGoNextMonth, className: "rounded-lg p-1 text-slate-500 hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-slate-800", onClick: () => {
+                                            if (!canGoNextMonth)
+                                                return;
+                                            const d = new Date(viewYear, viewMonth + 1, 1);
+                                            setViewYear(d.getFullYear());
+                                            setViewMonth(d.getMonth());
+                                        }, children: _jsx(ChevronRight, { size: 18 }) })] }), _jsx("div", { className: "mt-2 grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium text-slate-400", children: weekdayLabels.map((w, i) => (_jsx("div", { className: "py-1", children: w }, i))) }), _jsx("div", { className: "mt-0.5 grid grid-cols-7 gap-0.5", children: cells.map((day, idx) => {
+                                    if (day == null) {
+                                        return _jsx("div", { className: "aspect-square" }, `e-${idx}`);
+                                    }
+                                    const ymd = ymdFromDate(new Date(viewYear, viewMonth, day));
+                                    const isFuture = ymd > maxYmd;
+                                    const isEdge = ymd === draftFrom || ymd === draftTo;
+                                    const mid = inRangeVisual(ymd) && !isEdge && !isFuture;
+                                    return (_jsx("button", { type: "button", disabled: isFuture, onClick: () => onDayClick(day), className: cn('aspect-square rounded-lg text-xs font-medium transition-colors', isFuture && 'cursor-not-allowed text-slate-300 opacity-35 dark:text-slate-600', !isFuture &&
+                                            isEdge &&
+                                            'bg-indigo-600 text-white shadow-sm dark:bg-indigo-500 dark:text-white', !isFuture && mid && 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200', !isFuture &&
+                                            !inRangeVisual(ymd) &&
+                                            'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'), children: day }, ymd));
+                                }) }), _jsxs("p", { className: "mt-2 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400", children: [_jsx(CalendarIcon, { size: 12, className: "shrink-0 opacity-70" }), pickHint === 'start' ? t.navDatePickStart : t.navDatePickEnd] }), _jsxs(Button, { type: "button", className: "mt-3 h-10 w-full rounded-xl", onClick: applyDraft, children: [_jsx("span", { className: "sm:hidden", children: t.navDateApply }), _jsxs("span", { className: "hidden sm:inline", children: [t.navDateApply, " (", formatYmdDisplay(draftFrom), " \u2014 ", formatYmdDisplay(draftTo), ")"] })] })] })] }))] }));
 }

@@ -7,7 +7,7 @@ import { isYmdInNavFilter } from '../lib/nav-date-range';
 import { useApp } from '../i18n/app-context';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { categoryLabel, categoryMeta } from '../utils/category';
+import { categoryLabel, categoryMeta, CategoryIconGlyph } from '../utils/category';
 import { formatDate, formatKg, formatNumber } from '../utils/format';
 
 interface KpiProps {
@@ -63,6 +63,14 @@ export function Dashboard() {
     return { incoming, sorted, processed, sold };
   }, [state, navDateFilter]);
 
+  const totalWarehouseKg = useMemo(() => {
+    let sum = 0;
+    for (const w of state.warehouseItems) {
+      if (w.unit === 'kg') sum += w.currentQty;
+    }
+    return sum;
+  }, [state.warehouseItems]);
+
   const stockByCategory = useMemo(() => {
     const map = new Map<string, number>();
     for (const item of state.warehouseItems) {
@@ -74,7 +82,26 @@ export function Dashboard() {
       .sort((a, b) => b.qty - a.qty);
   }, [state.warehouseItems]);
 
-  const totalStockKg = stockByCategory.reduce((sum, r) => sum + r.qty, 0);
+  const warehouseStockProducts = useMemo(() => {
+    const parentNameByChildId = new Map<string, string>();
+    for (const w of state.warehouseItems) {
+      if (!w.parentWarehouseId) continue;
+      const p = state.warehouseItems.find((x) => x.id === w.parentWarehouseId);
+      if (p) parentNameByChildId.set(w.id, p.productName);
+    }
+    return state.warehouseItems
+      .filter((w) => w.unit === 'kg' && w.currentQty > 0)
+      .map((w) => ({
+        id: w.id,
+        name: w.productName,
+        parentName: parentNameByChildId.get(w.id),
+        category: w.category,
+        qty: w.currentQty,
+      }))
+      .sort((a, b) => b.qty - a.qty);
+  }, [state.warehouseItems]);
+
+  const totalStockKg = totalWarehouseKg;
 
   const recentActivity = useMemo(() => {
     type Item = { id: string; date: string; title: string; subtitle: string; emoji: string };
@@ -128,7 +155,13 @@ export function Dashboard() {
   return (
     <div className="space-y-5">
       {/* KPIs */}
-      <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-5">
+        <KpiCard
+          title={t.dashWarehouseStockKg}
+          value={formatKg(totalWarehouseKg)}
+          icon={Boxes}
+          iconBg="bg-gradient-to-br from-violet-500 to-indigo-600"
+        />
         <KpiCard
           title={t.dashTotalIncoming}
           value={formatKg(totals.incoming)}
@@ -176,33 +209,66 @@ export function Dashboard() {
               <ArrowUpRight size={12} />
             </Link>
           </div>
-          <div className="space-y-3 p-5">
-            {stockByCategory.length === 0 ? (
+          <div className="space-y-4 p-5">
+            {warehouseStockProducts.length === 0 ? (
               <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
                 {t.dashEmpty}
               </p>
             ) : (
-              stockByCategory.map(({ cat, qty }) => {
-                const meta = categoryMeta(cat);
-                const pct = totalStockKg > 0 ? (qty / totalStockKg) * 100 : 0;
-                return (
-                  <div key={cat}>
-                    <div className="mb-1.5 flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-2 font-medium text-slate-600 dark:text-slate-300">
-                        <span>{meta.emoji}</span>
-                        {categoryLabel(cat, t)}
-                      </span>
-                      <span className={`nums font-semibold ${meta.text}`}>{formatKg(qty)}</span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+              <>
+                <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                  {warehouseStockProducts.map((row) => {
+                    const meta = categoryMeta(row.category);
+                    return (
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${meta.bar}`}
-                        style={{ width: `${Math.max(2, pct)}%` }}
-                      />
-                    </div>
+                        key={row.id}
+                        className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                            {row.name}
+                          </p>
+                          {row.parentName && (
+                            <p className="truncate text-[11px] text-slate-400">
+                              {row.parentName}
+                            </p>
+                          )}
+                        </div>
+                        <span className={`nums shrink-0 text-sm font-semibold ${meta.text}`}>
+                          {formatKg(row.qty)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {stockByCategory.length > 0 && (
+                  <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-700">
+                    {stockByCategory.map(({ cat, qty }) => {
+                      const meta = categoryMeta(cat);
+                      const pct = totalStockKg > 0 ? (qty / totalStockKg) * 100 : 0;
+                      return (
+                        <div key={cat}>
+                          <div className="mb-1.5 flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-2 font-medium text-slate-600 dark:text-slate-300">
+                              <CategoryIconGlyph category={cat} size={14} />
+                              {categoryLabel(cat, t)}
+                            </span>
+                            <span className={`nums font-semibold ${meta.text}`}>
+                              {formatKg(qty)}
+                            </span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${meta.bar}`}
+                              style={{ width: `${Math.max(2, pct)}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })
+                )}
+              </>
             )}
           </div>
         </Card>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Search, Package, TrendingDown, TrendingUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Package, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore, type CategoryKey, type WarehouseItem } from '../store/saralash-store';
 import { useNavDateFilter } from '../context/nav-date-range-context';
@@ -45,7 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { categoryLabel, categoryMeta } from '../utils/category';
+import { categoryLabel, categoryMeta, CategoryIconGlyph, CategoryProductIcon } from '../utils/category';
 import { formatDate, formatNumber, TODAY, uid } from '../utils/format';
 import { cn } from '../components/ui/utils';
 
@@ -522,7 +522,7 @@ export function Warehouse() {
   const { t } = useApp();
   const { filter: navDateFilter } = useNavDateFilter();
 
-  const [tab, setTab] = useState<'stock' | 'sold' | 'used'>('stock');
+  const [tab, setTab] = useState<'stock' | 'sold'>('stock');
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<CategoryKey | '__all'>('__all');
 
@@ -643,12 +643,6 @@ export function Warehouse() {
       state.outcomes.filter((o) => o.type === 'SOLD' && isYmdInNavFilter(o.date, navDateFilter)),
     [state.outcomes, navDateFilter],
   );
-  const usedOutcomes = useMemo(
-    () =>
-      state.outcomes.filter((o) => o.type === 'CONSUMED' && isYmdInNavFilter(o.date, navDateFilter)),
-    [state.outcomes, navDateFilter],
-  );
-
   const totalsByUnit = useMemo(() => {
     const totals = { kg: 0, pcs: 0 };
     for (const w of state.warehouseItems) {
@@ -686,7 +680,7 @@ export function Warehouse() {
   return (
     <div className="space-y-4">
       {/* KPI */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Card className="flex items-center gap-3 p-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/30">
             <Package size={18} className="text-blue-600 dark:text-blue-400" />
@@ -705,15 +699,6 @@ export function Warehouse() {
             <p className="nums text-lg font-bold">{soldOutcomes.length}</p>
           </div>
         </Card>
-        <Card className="flex items-center gap-3 p-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
-            <TrendingDown size={18} className="text-amber-600 dark:text-amber-400" />
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{t.whTabUsed}</p>
-            <p className="nums text-lg font-bold">{usedOutcomes.length}</p>
-          </div>
-        </Card>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
@@ -729,12 +714,6 @@ export function Warehouse() {
               {t.whTabSold}
               <Badge variant="muted" className="ml-1 text-[10px]">
                 {soldOutcomes.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="used" className="flex-1 sm:flex-none">
-              {t.whTabUsed}
-              <Badge variant="muted" className="ml-1 text-[10px]">
-                {usedOutcomes.length}
               </Badge>
             </TabsTrigger>
           </TabsList>
@@ -781,7 +760,7 @@ export function Warehouse() {
                   <SelectItem value="__all">{t.whFilterAll}</SelectItem>
                   {categoryFilterOptions.map((c) => (
                     <SelectItem key={c} value={c}>
-                      <span className="mr-1.5">{categoryMeta(c).emoji}</span>
+                      <CategoryIconGlyph category={c} size={14} className="mr-1.5 inline" />
                       {categoryLabel(c, t)}
                     </SelectItem>
                   ))}
@@ -829,6 +808,9 @@ export function Warehouse() {
                         )}
                         {rows.map((w, rowIndex) => {
                           const isChild = w.id !== root.id;
+                          const rowNumLabel = isChild
+                            ? `${groupIndex + 1}.${rowIndex}.`
+                            : `${groupIndex + 1}.`;
                           const isLastInGroup = rowIndex === rows.length - 1;
                           const meta = categoryMeta(w.category);
                           const separatedSum = childrenQtySumByRootId.get(root.id) ?? 0;
@@ -846,34 +828,48 @@ export function Warehouse() {
                               )}
                             >
                               <TableCell
-                                className={`font-medium text-slate-800 dark:text-white ${isChild ? 'pl-8' : ''}`}
+                                className={`font-medium text-slate-800 dark:text-white ${isChild ? 'pl-4' : ''}`}
                               >
-                                {isChild && (
-                                  <span className="mr-1.5 text-indigo-500 dark:text-indigo-400" aria-hidden>
-                                    └
-                                  </span>
-                                )}
-                                {w.productName}
-                                {isChild && (
-                                  <Badge variant="outline" className="ml-2 text-[10px] font-normal">
-                                    {t.whSubLineBadge}
-                                  </Badge>
-                                )}
-                                {w.source === 'PROCESSED' && (
-                                  <Badge variant="muted" className="ml-2 text-[10px]">
-                                    {t.sortingProcessed}
-                                  </Badge>
-                                )}
-                                {w.source === 'SUPPLIER' && (
-                                  <Badge variant="muted" className="ml-2 text-[10px]">
-                                    {t.whSourceSupplier}
-                                    {w.supplierName ? `: ${w.supplierName}` : ''}
-                                  </Badge>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  <CategoryProductIcon category={w.category} />
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-1">
+                                      {isChild && (
+                                        <span
+                                          className="text-indigo-500 dark:text-indigo-400"
+                                          aria-hidden
+                                        >
+                                          └
+                                        </span>
+                                      )}
+                                      <span className="tabular-nums font-medium text-slate-500 dark:text-slate-400">
+                                        {rowNumLabel}
+                                      </span>
+                                      <span>{w.productName}</span>
+                                      {isChild && (
+                                        <Badge variant="outline" className="text-[10px] font-normal">
+                                          {t.whSubLineBadge}
+                                        </Badge>
+                                      )}
+                                      {w.source === 'PROCESSED' && (
+                                        <Badge variant="muted" className="text-[10px]">
+                                          {t.sortingProcessed}
+                                        </Badge>
+                                      )}
+                                      {w.source === 'SUPPLIER' && (
+                                        <Badge variant="muted" className="text-[10px]">
+                                          {t.whSourceSupplier}
+                                          {w.supplierName ? `: ${w.supplierName}` : ''}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
                               </TableCell>
                               <TableCell>
-                                <Badge className={meta.badge}>
-                                  {meta.emoji} {categoryLabel(w.category, t)}
+                                <Badge className={cn(meta.badge, 'gap-1')}>
+                                  <CategoryIconGlyph category={w.category} size={12} />
+                                  {categoryLabel(w.category, t)}
                                 </Badge>
                               </TableCell>
                               <TableCell className={`nums text-right font-semibold ${meta.text}`}>
@@ -953,21 +949,21 @@ export function Warehouse() {
             {warehouseStockGroups.length === 0 ? (
               <Card className="p-8 text-center text-sm text-slate-400">{t.noData}</Card>
             ) : (
-              warehouseStockGroups.map(({ root, children }) => {
+              warehouseStockGroups.map(({ root, children }, groupIndex) => {
                 const rootMeta = categoryMeta(root.category);
+                const groupNum = groupIndex + 1;
                 const separatedSum = childrenQtySumByRootId.get(root.id) ?? 0;
                 const showSeparatedHint = children.length > 0 && separatedSum > 1e-9;
                 return (
                   <Card key={root.id} className="overflow-hidden border-slate-200/90 dark:border-slate-600">
                     <div className="border-b border-slate-100 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                       <div className="flex items-start gap-3">
-                        <div
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${rootMeta.iconBg} text-lg`}
-                        >
-                          <span>{rootMeta.emoji}</span>
-                        </div>
+                        <CategoryProductIcon category={root.category} size="md" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-800 dark:text-white">
+                            <span className="mr-1 tabular-nums text-slate-500 dark:text-slate-400">
+                              {groupNum}.
+                            </span>
                             {root.productName}
                           </p>
                           <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -1026,14 +1022,18 @@ export function Warehouse() {
                     </div>
                     {children.length > 0 && (
                       <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                        {children.map((w) => {
+                        {children.map((w, childIndex) => {
                           const meta = categoryMeta(w.category);
                           return (
-                            <div key={w.id} className="bg-indigo-50/30 p-4 pl-6 dark:bg-indigo-950/15">
+                            <div key={w.id} className="bg-indigo-50/30 p-4 pl-4 dark:bg-indigo-950/15">
                               <div className="flex items-start gap-3">
-                                <span className="mt-1 font-mono text-indigo-500 dark:text-indigo-400">└</span>
+                                <CategoryProductIcon category={w.category} />
+                                <span className="mt-1.5 font-mono text-indigo-500 dark:text-indigo-400">└</span>
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-sm font-medium text-slate-800 dark:text-white">
+                                    <span className="mr-1 tabular-nums text-slate-500 dark:text-slate-400">
+                                      {groupNum}.{childIndex + 1}.
+                                    </span>
                                     {w.productName}
                                     <Badge variant="outline" className="ml-2 align-middle text-[9px] font-normal">
                                       {t.whSubLineBadge}
@@ -1136,42 +1136,6 @@ export function Warehouse() {
                       <TableCell className="nums text-right font-semibold text-emerald-600 dark:text-emerald-400">
                         {o.totalAmount ? formatNumber(o.totalAmount) + " so'm" : '—'}
                       </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-
-        {/* TAB: USED */}
-        <TabsContent value="used">
-          <Card className="overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t.date}</TableHead>
-                  <TableHead>{t.whProductName}</TableHead>
-                  <TableHead className="text-right">{t.quantity}</TableHead>
-                  <TableHead>{t.whUseReason}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {usedOutcomes.length === 0 ? (
-                  <TableEmpty colSpan={4} message={t.noData} />
-                ) : (
-                  usedOutcomes.map((o) => (
-                    <TableRow key={o.id}>
-                      <TableCell className="text-xs text-slate-500">
-                        {formatDate(o.date)}
-                      </TableCell>
-                      <TableCell className="font-medium text-slate-800 dark:text-white">
-                        {o.productName}
-                      </TableCell>
-                      <TableCell className="nums text-right">
-                        {formatNumber(o.quantity)} {o.unit}
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-500">{o.reason ?? '—'}</TableCell>
                     </TableRow>
                   ))
                 )}

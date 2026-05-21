@@ -34,6 +34,16 @@ import {
 } from './ui/table';
 import { formatDate, formatMoneyInputDisplay, formatNumber, uid } from '../utils/format';
 import { Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 
 interface DraftLine {
   key: string;
@@ -77,16 +87,20 @@ export function PosOrderDetailDialog({
   lines,
   open,
   onOpenChange,
+  initialEditMode = false,
 }: {
   orderId: string;
   lines: WarehouseOutcome[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Tarix jadvalidan «Tahrirlash» — dialog ochilganda darhol tahrir rejimi. */
+  initialEditMode?: boolean;
 }) {
-  const { state, updatePosOrder } = useStore();
+  const { state, updatePosOrder, deletePosOrder } = useStore();
   const { t } = useApp();
 
   const [editMode, setEditMode] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [saleDate, setSaleDate] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [paidInput, setPaidInput] = useState('');
@@ -117,8 +131,21 @@ export function PosOrderDetailDialog({
   }, [lines]);
 
   useEffect(() => {
-    if (open && lines.length) resetFromProps();
-  }, [open, lines, resetFromProps]);
+    if (!open || !lines.length) return;
+    resetFromProps();
+    if (initialEditMode) setEditMode(true);
+  }, [open, lines, resetFromProps, initialEditMode]);
+
+  const handleDelete = () => {
+    const ok = deletePosOrder(orderId);
+    if (!ok) {
+      toast.error(t.posSaleInvalid);
+      return;
+    }
+    toast.success(t.posOrderDeleted);
+    setConfirmDelete(false);
+    onOpenChange(false);
+  };
 
   const orderTotal = useMemo(
     () => draftLines.reduce((s, l) => s + l.qty * l.price, 0),
@@ -273,9 +300,17 @@ export function PosOrderDetailDialog({
               </TableBody>
             </Table>
 
-            <DialogFooter className="sm:justify-start">
+            <DialogFooter className="flex-wrap gap-2 sm:justify-between">
               <Button type="button" className="rounded-xl" onClick={() => setEditMode(true)}>
                 {t.posEditOrder}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
+                onClick={() => setConfirmDelete(true)}
+              >
+                {t.delete}
               </Button>
             </DialogFooter>
           </div>
@@ -446,6 +481,19 @@ export function PosOrderDetailDialog({
           </div>
         )}
       </DialogContent>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.delete}</AlertDialogTitle>
+            <AlertDialogDescription>{t.posDeleteOrderConfirm}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>{t.delete}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

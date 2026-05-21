@@ -22,8 +22,8 @@ export function listDemoUsers() {
     return readRaw();
 }
 export function matchDemoUser(identifier, password) {
-    const id = identifier.trim().toLowerCase();
-    return (readRaw().find((u) => u.login.trim().toLowerCase() === id && u.password === password && u.isActive) ?? null);
+    const id = identifier.trim();
+    return (readRaw().find((u) => u.login.trim() === id && u.password === password && u.isActive) ?? null);
 }
 export function demoStoredToSession(u) {
     return {
@@ -44,7 +44,7 @@ export function addDemoUser(row) {
     const created = {
         ...row,
         fullName: row.fullName.trim(),
-        login: row.login.trim().toLowerCase(),
+        login: row.login.trim(),
         positions: row.positions ?? [],
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
@@ -62,7 +62,7 @@ export function updateDemoUser(id, patch) {
     if (patch.fullName !== undefined)
         next.fullName = patch.fullName.trim();
     if (patch.login !== undefined)
-        next.login = patch.login.trim().toLowerCase();
+        next.login = patch.login.trim();
     if (patch.password !== undefined && patch.password !== '')
         next.password = patch.password;
     if (patch.role !== undefined)
@@ -87,8 +87,8 @@ export function removeDemoUser(id) {
     return true;
 }
 export function isLoginTakenDemo(login, exceptId) {
-    const id = login.trim().toLowerCase();
-    return readRaw().some((u) => u.id !== exceptId && u.login.trim().toLowerCase() === id);
+    const id = login.trim();
+    return readRaw().some((u) => u.id !== exceptId && u.login.trim() === id);
 }
 /** Tarmoqdan keyin ishlatiladigan tizim demo-kirishi (localStorage). */
 const BUILTIN_DEMO_AUTH_KEY = 'saralash_builtin_demo_auth';
@@ -98,7 +98,7 @@ export function getBuiltinDemoCredentials() {
         if (!raw)
             return { login: 'admin', password: 'admin123' };
         const p = JSON.parse(raw);
-        const login = typeof p.login === 'string' && p.login.trim().length >= 2 ? p.login.trim().toLowerCase() : 'admin';
+        const login = typeof p.login === 'string' && p.login.trim().length >= 2 ? p.login.trim() : 'admin';
         const password = typeof p.password === 'string' && p.password.length >= 4 ? p.password : 'admin123';
         return { login, password };
     }
@@ -107,5 +107,5 @@ export function getBuiltinDemoCredentials() {
     }
 }
 export function setBuiltinDemoCredentials(login, password) {
-    localStorage.setItem(BUILTIN_DEMO_AUTH_KEY, JSON.stringify({ login: login.trim().toLowerCase(), password }));
+    localStorage.setItem(BUILTIN_DEMO_AUTH_KEY, JSON.stringify({ login: login.trim(), password }));
 }

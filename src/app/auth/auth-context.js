@@ -1,6 +1,6 @@
 import { jsx as _jsx } from "react/jsx-runtime";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { authChangeCredentials, authLogin, authLogoutApi, authMe, hydrateTokensFromStorage, setApiTokens, } from '../lib/api-client';
+import { authChangeCredentials, authLogin, authLogoutApi, authMe, restoreApiSession, setApiTokens, } from '../lib/api-client';
 import { demoStoredToSession, getBuiltinDemoCredentials, isLoginTakenDemo, listDemoUsers, matchDemoUser, setBuiltinDemoCredentials, updateDemoUser, } from '../lib/demo-users-store';
 const STORAGE_KEY = 'saralash_session';
 const ALL_ROUTES = [
@@ -108,33 +108,30 @@ export function AuthProvider({ children }) {
             setLoading(false);
             return;
         }
-        hydrateTokensFromStorage({
-            user: stored.user,
-            accessToken: stored.accessToken,
-            refreshToken: stored.refreshToken,
-        });
         setUser(stored.user);
         setSessionMode('api');
         (async () => {
-            try {
-                const me = await authMe(stored.accessToken);
-                setUser(me);
+            const session = await restoreApiSession({
+                user: stored.user,
+                accessToken: stored.accessToken,
+                refreshToken: stored.refreshToken,
+            });
+            if (session) {
+                setUser(session.user);
                 persist({
                     mode: 'api',
-                    user: me,
-                    accessToken: stored.accessToken,
-                    refreshToken: stored.refreshToken,
+                    user: session.user,
+                    accessToken: session.accessToken,
+                    refreshToken: session.refreshToken,
                 });
             }
-            catch {
+            else {
                 setUser(null);
                 setSessionMode(null);
                 setApiTokens(null, null);
                 persist(null);
             }
-            finally {
-                setLoading(false);
-            }
+            setLoading(false);
         })();
     }, []);
     const login = useCallback(async (identifier, password) => {
@@ -161,7 +158,7 @@ export function AuthProvider({ children }) {
                 return;
             }
             const cred = getBuiltinDemoCredentials();
-            const builtinOk = identifier.trim().toLowerCase() === cred.login && password === cred.password;
+            const builtinOk = identifier.trim() === cred.login.trim() && password === cred.password;
             const serverDown = isNetworkError(e) || (e instanceof Error && e.message === 'AUTH_SERVER_ERROR');
             if (serverDown && builtinOk) {
                 setUser({ ...DEMO_USER, login: cred.login });
@@ -253,12 +250,12 @@ export function AuthProvider({ children }) {
         };
         if (!verifyPwd())
             throw new Error('AUTH_WRONG_CURRENT');
-        const nextLoginLower = nl ? nl.toLowerCase() : u.login;
+        const nextLogin = nl ? nl.trim() : u.login;
         if (nl && isLoginTakenDemo(nl, u.id))
             throw new Error('AUTH_LOGIN_TAKEN');
         if (u.id === DEMO_USER.id) {
             const c = getBuiltinDemoCredentials();
-            setBuiltinDemoCredentials(nl ? nextLoginLower : c.login, np || c.password);
+            setBuiltinDemoCredentials(nl ? nextLogin : c.login, np || c.password);
             const c2 = getBuiltinDemoCredentials();
             const nextUser = { ...DEMO_USER, login: c2.login };
             persist({ mode: 'demo', user: nextUser });
@@ -267,7 +264,7 @@ export function AuthProvider({ children }) {
         }
         const patch = {};
         if (nl)
-            patch.login = nextLoginLower;
+            patch.login = nextLogin;
         if (np)
             patch.password = np;
         const row = updateDemoUser(u.id, patch);

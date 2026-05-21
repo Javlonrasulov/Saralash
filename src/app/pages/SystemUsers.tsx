@@ -176,19 +176,19 @@ export function SystemUsers() {
     const positionsClean = normalizePositionsList(form.positions);
     try {
       if (!canUseApi) {
-        const loginLc = form.login.trim().toLowerCase();
+        const loginNorm = form.login.trim();
         if (!editedId) {
-          if (loginLc === 'admin') {
+          if (loginNorm.toLowerCase() === 'admin') {
             toast.error(t.usersLoginAdminReserved);
             return;
           }
-          if (isLoginTakenDemo(loginLc)) {
+          if (isLoginTakenDemo(loginNorm)) {
             toast.error(t.usersLoginTaken);
             return;
           }
           addDemoUser({
             fullName: form.fullName.trim(),
-            login: loginLc,
+            login: loginNorm,
             password: form.password,
             role: apiRole(form.fullAccess),
             allowedRoutes: form.fullAccess ? [...ROUTE_KEYS] : form.allowedRoutes,
@@ -197,17 +197,18 @@ export function SystemUsers() {
           });
           toast.success(t.add);
         } else {
-          if (loginLc !== list.find((r) => r.id === editedId)?.login && isLoginTakenDemo(loginLc, editedId)) {
+          const prevLogin = list.find((r) => r.id === editedId)?.login;
+          if (loginNorm !== prevLogin && isLoginTakenDemo(loginNorm, editedId)) {
             toast.error(t.usersLoginTaken);
             return;
           }
-          if (loginLc === 'admin' && list.find((r) => r.id === editedId)?.login !== 'admin') {
+          if (loginNorm.toLowerCase() === 'admin' && prevLogin?.toLowerCase() !== 'admin') {
             toast.error(t.usersLoginAdminReserved);
             return;
           }
           updateDemoUser(editedId, {
             fullName: form.fullName.trim(),
-            login: loginLc,
+            login: loginNorm,
             password: form.password.trim() || undefined,
             role: apiRole(form.fullAccess),
             allowedRoutes: form.fullAccess ? [...ROUTE_KEYS] : form.allowedRoutes,
@@ -222,12 +223,15 @@ export function SystemUsers() {
       }
 
       if (editedId) {
+        const prev = list.find((r) => r.id === editedId);
+        const loginNorm = form.login.trim();
         const body: Record<string, unknown> = {
           fullName: form.fullName.trim(),
           role: apiRole(form.fullAccess),
           allowedRoutes: form.fullAccess ? undefined : form.allowedRoutes,
           positions: positionsClean,
         };
+        if (loginNorm && loginNorm !== prev?.login) body.login = loginNorm;
         if (form.password.trim()) body.password = form.password;
         const res = await apiFetch(`/users/${editedId}`, { method: 'PATCH', body: JSON.stringify(body) });
         if (!res.ok) throw new Error();
@@ -237,7 +241,7 @@ export function SystemUsers() {
           method: 'POST',
           body: JSON.stringify({
             fullName: form.fullName.trim(),
-            login: form.login.trim().toLowerCase(),
+            login: form.login.trim(),
             password: form.password,
             role: apiRole(form.fullAccess),
             allowedRoutes: form.fullAccess ? undefined : form.allowedRoutes,
@@ -335,9 +339,10 @@ export function SystemUsers() {
               value={form.login}
               onChange={(e) => setForm((f) => ({ ...f, login: e.target.value }))}
               className="mt-1.5"
-              disabled={Boolean(editingId)}
               required
+              autoComplete="username"
             />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t.usersLoginCyrillicHint}</p>
           </div>
           <div>
             <Label>{t.usersPassword}</Label>

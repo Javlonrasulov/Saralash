@@ -6,7 +6,7 @@ import { useApp } from '../i18n/app-context';
 import { useNavDateFilter } from '../context/nav-date-range-context';
 import { isYmdInNavFilter, formatYmdDisplay } from '../lib/nav-date-range';
 import { Card } from '../components/ui/card';
-import { categoryLabel, categoryMeta } from '../utils/category';
+import { categoryLabel, categoryMeta, CategoryIconGlyph } from '../utils/category';
 import { formatDecimal, formatKg, formatNumber } from '../utils/format';
 const TONE_INDIGO = {
     iconBg: 'bg-indigo-100 dark:bg-indigo-500/15',
@@ -119,7 +119,7 @@ export function Statistics() {
     }, [state.warehouseItems]);
     /** Davr boʻyicha sotuv (SOLD) qatorlari. */
     const soldLines = useMemo(() => state.outcomes.filter((o) => o.type === 'SOLD' && isYmdInNavFilter(o.date, filter)), [state.outcomes, filter]);
-    /** Davr boʻyicha postavchik xaridlari. */
+    /** Davr boʻyicha ko‘cha obyekti xaridlari. */
     const purchases = useMemo(() => state.supplierPurchases.filter((p) => isYmdInNavFilter(p.incomeDate, filter)), [state.supplierPurchases, filter]);
     /** Davr boʻyicha «Chiqim» yozuvlari. */
     const expensesInRange = useMemo(() => state.expenses.filter((e) => isYmdInNavFilter(e.date, filter)), [state.expenses, filter]);
@@ -147,7 +147,7 @@ export function Statistics() {
             avgOrder = revenue / orderCount;
         return { revenue, cogs, expensesTotal, profit, margin, orderCount, avgOrder };
     }, [soldLines, warehouseById, expensesInRange]);
-    /** Operatsiya statistikasi: faol klient/postavchik soni, sotilgan kg. */
+    /** Operatsiya statistikasi: faol klient/ko‘cha obyekti soni, sotilgan kg. */
     const ops = useMemo(() => {
         const customerSet = new Set();
         for (const o of soldLines)
@@ -263,7 +263,7 @@ export function Statistics() {
         }
         return [...map.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
     }, [soldLines, state.customers]);
-    /** Postavchik boʻyicha TOP-5 (xarid summasi). */
+    /** Ko‘cha obyekti boʻyicha TOP-5 (xarid summasi). */
     const topSuppliers = useMemo(() => {
         const map = new Map();
         for (const p of purchases) {
@@ -313,7 +313,7 @@ export function Statistics() {
                                 const share = totalCategoryRevenue > 0 ? (row.revenue / totalCategoryRevenue) * 100 : 0;
                                 const margin = row.revenue > 0 ? (row.profit / row.revenue) * 100 : 0;
                                 const isLoss = row.profit < 0;
-                                return (_jsxs("div", { children: [_jsxs("div", { className: "mb-1.5 flex items-baseline justify-between gap-3", children: [_jsxs("span", { className: "flex min-w-0 items-baseline gap-2 text-sm font-medium text-slate-700 dark:text-slate-200", children: [_jsx("span", { className: "text-base leading-none", children: meta.emoji }), _jsx("span", { className: "truncate", children: categoryLabel(row.cat, t) }), _jsx("span", { className: "nums shrink-0 text-[10px] text-slate-400", children: formatKg(row.qty) })] }), _jsxs("span", { className: "flex shrink-0 items-baseline gap-3 text-xs", children: [_jsxs("span", { className: "nums text-slate-500 dark:text-slate-400", children: [formatNumber(row.revenue), " so'm"] }), _jsxs("span", { className: `nums font-semibold ${isLoss
+                                return (_jsxs("div", { children: [_jsxs("div", { className: "mb-1.5 flex items-baseline justify-between gap-3", children: [_jsxs("span", { className: "flex min-w-0 items-baseline gap-2 text-sm font-medium text-slate-700 dark:text-slate-200", children: [_jsx(CategoryIconGlyph, { category: row.cat, size: 16 }), _jsx("span", { className: "truncate", children: categoryLabel(row.cat, t) }), _jsx("span", { className: "nums shrink-0 text-[10px] text-slate-400", children: formatKg(row.qty) })] }), _jsxs("span", { className: "flex shrink-0 items-baseline gap-3 text-xs", children: [_jsxs("span", { className: "nums text-slate-500 dark:text-slate-400", children: [formatNumber(row.revenue), " so'm"] }), _jsxs("span", { className: `nums font-semibold ${isLoss
                                                                 ? 'text-rose-600 dark:text-rose-400'
                                                                 : 'text-emerald-600 dark:text-emerald-400'}`, children: [isLoss ? '−' : '+', formatNumber(Math.abs(row.profit))] }), _jsxs("span", { className: `hidden shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold sm:inline-block ${isLoss
                                                                 ? 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300'
@@ -324,7 +324,7 @@ export function Statistics() {
                                         const isLoss = row.profit < 0;
                                         const maxProfit = Math.max(...topProducts.map((p) => Math.abs(p.profit)), 1);
                                         const share = (Math.abs(row.profit) / maxProfit) * 100;
-                                        return (_jsxs("li", { children: [_jsxs("div", { className: "mb-1.5 flex items-center justify-between gap-3", children: [_jsxs("div", { className: "flex min-w-0 items-center gap-2.5", children: [_jsx("span", { className: `flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold text-white ${meta.iconBg}`, children: i + 1 }), _jsxs("div", { className: "min-w-0", children: [_jsx("p", { className: "truncate text-sm font-medium text-slate-800 dark:text-white", children: row.name }), _jsxs("p", { className: "nums mt-0.5 text-[10px] text-slate-400", children: [formatKg(row.qty), " \u2022 ", formatNumber(row.orders), " ", t.statColOrders] })] })] }), _jsxs("div", { className: "shrink-0 text-right", children: [_jsxs("p", { className: `nums text-sm font-bold ${isLoss
+                                        return (_jsxs("li", { children: [_jsxs("div", { className: "mb-1.5 flex items-center justify-between gap-3", children: [_jsxs("div", { className: "flex min-w-0 items-center gap-2.5", children: [_jsx("span", { className: `flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold text-white ${meta.bar}`, children: i + 1 }), _jsxs("div", { className: "min-w-0", children: [_jsx("p", { className: "truncate text-sm font-medium text-slate-800 dark:text-white", children: row.name }), _jsxs("p", { className: "nums mt-0.5 text-[10px] text-slate-400", children: [formatKg(row.qty), " \u2022 ", formatNumber(row.orders), " ", t.statColOrders] })] })] }), _jsxs("div", { className: "shrink-0 text-right", children: [_jsxs("p", { className: `nums text-sm font-bold ${isLoss
                                                                         ? 'text-rose-600 dark:text-rose-400'
                                                                         : 'text-emerald-600 dark:text-emerald-400'}`, children: [isLoss ? '−' : '+', formatNumber(Math.abs(row.profit))] }), _jsxs("p", { className: "text-[10px] text-slate-400", children: [formatDecimal(margin, 1), "%"] })] })] }), _jsx("div", { className: "h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/60", children: _jsx("div", { className: `h-full rounded-full transition-all duration-500 ${isLoss ? 'bg-rose-400' : meta.bar}`, style: { width: `${Math.max(2, share)}%` } }) })] }, `${row.name}-${i}`));
                                     }) })) })] }), _jsxs(Card, { children: [_jsxs("div", { className: "border-b border-slate-100 px-5 py-4 dark:border-slate-700", children: [_jsxs("h3", { className: "flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-white", children: [_jsx(Users, { size: 16, className: "text-violet-500" }), t.statSectionTopCustomers] }), _jsx("p", { className: "mt-0.5 text-[11px] text-slate-500 dark:text-slate-400", children: t.statSectionTopCustomersDesc })] }), _jsx("div", { className: "p-5", children: topCustomers.length === 0 ? (_jsx("p", { className: "py-6 text-center text-sm text-slate-400 dark:text-slate-500", children: t.statEmpty })) : (_jsx("ol", { className: "space-y-3", children: topCustomers.map((row, i) => {

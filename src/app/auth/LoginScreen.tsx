@@ -57,6 +57,7 @@ export function LoginScreen() {
                 placeholder="admin"
               />
             </div>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t.authLoginCyrillicHint}</p>
           </div>
 
           <div>

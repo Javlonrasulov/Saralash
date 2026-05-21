@@ -3,6 +3,7 @@ import { RouterProvider } from 'react-router';
 import { ThemeProvider } from 'next-themes';
 import { router } from './routes';
 import { AppProvider } from './i18n/app-context';
+import { FontScaleProvider } from './context/font-scale-context';
 import { AuthProvider, useAuth } from './auth/auth-context';
 import { NavDateRangeProvider } from './context/nav-date-range-context';
 import { LoginScreen } from './auth/LoginScreen';
@@ -14,5 +15,5 @@ function AppShell() {
     return (_jsx(NavDateRangeProvider, { children: _jsx(RouterProvider, { router: router }) }));
 }
 export default function App() {
-    return (_jsx(ThemeProvider, { attribute: "class", defaultTheme: "light", enableSystem: false, children: _jsx(AppProvider, { children: _jsxs(AuthProvider, { children: [_jsx(AppShell, {}), _jsx(Toaster, {})] }) }) }));
+    return (_jsx(ThemeProvider, { attribute: "class", defaultTheme: "light", enableSystem: false, children: _jsx(AppProvider, { children: _jsx(FontScaleProvider, { children: _jsxs(AuthProvider, { children: [_jsx(AppShell, {}), _jsx(Toaster, {})] }) }) }) }));
 }

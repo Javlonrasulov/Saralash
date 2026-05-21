@@ -18,7 +18,7 @@ function readStoredLang(): Language {
   } catch {
     /* ignore */
   }
-  return 'uz_latin';
+  return 'uz_cyrillic';
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {

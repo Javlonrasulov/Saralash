@@ -9,6 +9,7 @@ import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { ALL_APP_ROUTES, isAppRouteKey } from '../../common/constants/app-routes.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { isValidLogin, normalizeLoginInput } from '../../common/utils/login.util.js';
 import type { CreateUserDto, UpdateUserDto } from './dto.js';
 
 @Injectable()
@@ -56,7 +57,8 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto) {
-    const login = dto.login.trim().toLowerCase();
+    const login = normalizeLoginInput(dto.login);
+    if (!isValidLogin(login)) throw new BadRequestException('Login 2–64 belgi bo‘lishi kerak');
     const exists = await this.prisma.user.findUnique({ where: { login } });
     if (exists) throw new ConflictException('Bu login band');
 
@@ -107,12 +109,25 @@ export class UsersService {
 
     const data: {
       fullName?: string;
+      login?: string;
       passwordHash?: string;
       role?: Role;
       allowedRoutes?: string[];
       positions?: string[];
       isActive?: boolean;
     } = {};
+
+    if (dto.login !== undefined) {
+      const login = normalizeLoginInput(dto.login);
+      if (!isValidLogin(login)) throw new BadRequestException('Login 2–64 belgi bo‘lishi kerak');
+      if (login !== user.login) {
+        const taken = await this.prisma.user.findFirst({
+          where: { login, NOT: { id } },
+        });
+        if (taken) throw new ConflictException('Bu login band');
+        data.login = login;
+      }
+    }
 
     if (dto.fullName !== undefined) data.fullName = dto.fullName.trim();
     if (dto.password !== undefined) data.passwordHash = await bcrypt.hash(dto.password, 10);

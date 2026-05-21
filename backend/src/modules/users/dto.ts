@@ -22,6 +22,7 @@ export class CreateUserDto {
 
   @IsString()
   @MinLength(2)
+  @MaxLength(64)
   login!: string;
 
   @IsString()
@@ -51,6 +52,12 @@ export class UpdateUserDto {
   @IsString()
   @MinLength(1)
   fullName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(64)
+  login?: string;
 
   @IsOptional()
   @IsString()

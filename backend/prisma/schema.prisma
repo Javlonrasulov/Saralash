@@ -227,3 +227,14 @@ model WarehouseOutcome {
   @@index([type])
   @@index([date])
 }
+
+// =====================================================================
+// SHARED APP STATE (barcha foydalanuvchilar uchun bir xil ma'lumot)
+// =====================================================================
+
+model AppSnapshot {
+  id        String   @id @default("shared")
+  payload   Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}

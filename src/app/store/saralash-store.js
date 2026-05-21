@@ -1,11 +1,61 @@
 import { jsx as _jsx } from "react/jsx-runtime";
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, } from 'react';
+import { useAuth } from '../auth/auth-context';
+import { fetchSharedAppState, putSharedAppState } from '../lib/app-state-sync';
 import { TODAY, uid } from '../utils/format';
 // ============================================================================
 // TYPES
 // ============================================================================
 /** Asosiy kategoriyalar — qo'shimcha kategoriyalar foydalanuvchi tomonidan kiritilishi mumkin. */
 export const DEFAULT_CATEGORIES = ['paper', 'plastic', 'glass', 'metal', 'cardboard', 'other'];
+export function getSupplierPurchaseBatchKey(p) {
+    if (p.purchaseBatchId)
+        return p.purchaseBatchId;
+    const bucket = Math.floor(new Date(p.createdAt).getTime() / 5000);
+    return `legacy:${p.supplierId ?? '_'}:${p.incomeDate}:${(p.notes ?? '').trim()}:${bucket}`;
+}
+export function groupSupplierPurchasesForHistory(purchases) {
+    const map = new Map();
+    for (const p of purchases) {
+        const batchId = getSupplierPurchaseBatchKey(p);
+        let g = map.get(batchId);
+        if (!g) {
+            g = {
+                batchId,
+                supplierId: p.supplierId,
+                supplierName: p.supplierName,
+                incomeDate: p.incomeDate,
+                notes: p.notes ?? null,
+                createdAt: p.createdAt,
+                lines: [],
+            };
+            map.set(batchId, g);
+        }
+        g.lines.push(p);
+        if (p.createdAt < g.createdAt)
+            g.createdAt = p.createdAt;
+    }
+    for (const g of map.values()) {
+        g.lines.sort((a, b) => a.productName.localeCompare(b.productName, undefined, { sensitivity: 'base' }));
+    }
+    return [...map.values()].sort((a, b) => b.incomeDate.localeCompare(a.incomeDate) || b.createdAt.localeCompare(a.createdAt));
+}
+function migrateSupplierPurchaseBatchIds(purchases) {
+    if (!purchases.some((p) => !p.purchaseBatchId))
+        return purchases;
+    const legacyToId = new Map();
+    return purchases.map((p) => {
+        if (p.purchaseBatchId)
+            return p;
+        const lk = getSupplierPurchaseBatchKey(p);
+        let bid = legacyToId.get(lk);
+        if (!bid) {
+            bid = uid('spb');
+            legacyToId.set(lk, bid);
+        }
+        return { ...p, purchaseBatchId: bid };
+    });
+}
 /** Tizim ilk martalik default kategoriyalar (foydalanuvchi keyin tahrirlashi mumkin). */
 const DEFAULT_EXPENSE_CATEGORY_NAMES = [
     'Ish haqi',
@@ -253,6 +303,157 @@ function restoreKgSoldOutcome(map, outcome) {
     });
     return true;
 }
+/** `posOrderId` yoki eski bitta-qatorli yozuv (`id` = orderKey). */
+function soldOutcomesForOrderKey(outcomes, orderKey) {
+    return outcomes.filter((o) => o.type === 'SOLD' &&
+        (o.posOrderId === orderKey || (!o.posOrderId && o.id === orderKey)));
+}
+function isSoldOutcomeForOrderKey(o, orderKey) {
+    return (o.type === 'SOLD' &&
+        (o.posOrderId === orderKey || (!o.posOrderId && o.id === orderKey)));
+}
+function normalizeSupplierPurchaseQty(item, qty) {
+    if (!Number.isFinite(qty) || qty <= 0)
+        return null;
+    if (item.unit === 'pcs') {
+        const q = Math.floor(qty);
+        return q >= 1 ? q : null;
+    }
+    return qty;
+}
+/** Xarid bekor qilinsa: ombordan miqdor ayiriladi (sotilgan bo‘lsa — yetmasa, false). */
+function reverseSupplierPurchaseWarehouse(warehouseItems, warehouseItemId, quantity) {
+    const item = warehouseItems.find((w) => w.id === warehouseItemId);
+    if (!item)
+        return null;
+    let qty = quantity;
+    if (item.unit === 'pcs')
+        qty = Math.floor(qty);
+    if (!Number.isFinite(qty) || qty <= 0)
+        return null;
+    if (item.currentQty < qty - 1e-9)
+        return null;
+    const newCurrent = Math.max(0, item.currentQty - qty);
+    const newInitial = Math.max(0, item.initialQty - qty);
+    const updated = {
+        ...item,
+        currentQty: newCurrent,
+        initialQty: newInitial,
+        status: newCurrent > 1e-9 ? 'IN_STOCK' : item.status,
+    };
+    return warehouseItems.map((w) => (w.id === item.id ? updated : w));
+}
+/** O‘chirish/tahrirdan keyin shu ko‘cha obyekti bo‘yicha qarzni qayta hisoblash. */
+function reconcileSupplierPurchasesAfterChange(purchases, repayments, supplierId) {
+    if (!supplierId)
+        return purchases;
+    let next = purchases.map((p) => {
+        if (p.supplierId !== supplierId)
+            return p;
+        const T = p.totalAmount;
+        if (T == null || !Number.isFinite(T) || T <= 0) {
+            return { ...p, supplierDebtAmount: null, onCredit: false };
+        }
+        const paid = p.paidAmount != null && Number.isFinite(p.paidAmount) ? Math.max(0, p.paidAmount) : 0;
+        const debt = Math.max(0, T - paid);
+        return {
+            ...p,
+            supplierDebtAmount: debt,
+            onCredit: debt > 1e-6,
+            paidAmount: paid,
+        };
+    });
+    const ordered = [...repayments]
+        .filter((r) => r.supplierId === supplierId)
+        .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
+    for (const r of ordered) {
+        next = applyRepaymentToSupplierPurchases(next, r);
+    }
+    return syncAllSupplierPurchasesPaidFromTotals(next);
+}
+/** Bir qator xarid: ombor yangilanishi + tarix yozuvi. */
+function buildSupplierPurchaseUpdate(supplier, warehouseItems, input, preserve) {
+    const item = warehouseItems.find((w) => w.id === input.warehouseItemId);
+    if (!item)
+        return null;
+    const qty = normalizeSupplierPurchaseQty(item, input.quantity);
+    if (qty == null)
+        return null;
+    const p = input.purchasePricePerUnit;
+    const hasPositive = p != null && Number.isFinite(p) && p > 0;
+    const lineTotal = hasPositive ? p * qty : null;
+    const paidRaw = input.paidAmount;
+    const paid = paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
+    if (lineTotal != null) {
+        if (paid == null)
+            return null;
+        if (input.onCredit) {
+            if (paid > lineTotal + 1e-6)
+                return null;
+        }
+        else if (Math.abs(paid - lineTotal) > 1e-4 * Math.max(1, lineTotal)) {
+            return null;
+        }
+    }
+    const debt = lineTotal != null && paid != null ? Math.max(0, lineTotal - paid) : null;
+    const onCreditFlag = Boolean(input.onCredit && lineTotal != null && debt != null && debt > 1e-6);
+    const newQty = item.currentQty + qty;
+    const newInitial = item.initialQty + qty;
+    const mergedNotes = [item.notes?.trim(), input.notes?.trim()].filter(Boolean).join(' | ') || undefined;
+    const updated = {
+        ...item,
+        currentQty: newQty,
+        initialQty: newInitial,
+        incomeDate: input.incomeDate,
+        purchasePricePerUnit: hasPositive ? p : null,
+        supplierId: supplier.id,
+        supplierName: supplier.fullName,
+        notes: mergedNotes,
+        status: newQty > 0 ? 'IN_STOCK' : item.status,
+    };
+    const parentRow = item.parentWarehouseId
+        ? warehouseItems.find((w) => w.id === item.parentWarehouseId)
+        : null;
+    const historyProductName = parentRow
+        ? `${item.productName} (${parentRow.productName})`
+        : item.productName;
+    const record = {
+        id: preserve?.id ?? uid('sph'),
+        supplierId: input.recordSupplierId !== undefined ? input.recordSupplierId : supplier.id,
+        supplierName: input.recordSupplierName ?? supplier.fullName,
+        warehouseItemId: item.id,
+        incomeDate: input.incomeDate,
+        productName: historyProductName,
+        category: item.category,
+        unit: item.unit,
+        quantity: qty,
+        pricePerUnit: hasPositive ? p : null,
+        totalAmount: lineTotal,
+        paidAmount: lineTotal != null ? paid : null,
+        supplierDebtAmount: debt,
+        onCredit: onCreditFlag,
+        notes: input.notes?.trim() || null,
+        purchaseBatchId: input.purchaseBatchId ?? null,
+        createdAt: preserve?.createdAt ?? input.batchCreatedAt ?? new Date().toISOString(),
+    };
+    const nextWarehouseItems = warehouseItems.map((w) => (w.id === updated.id ? updated : w));
+    return { warehouseItems: nextWarehouseItems, record };
+}
+/** Qatorlar bo‘yicha to‘lovni ketma-ket taqsimlash (qarzda qolgan to‘lov keyingi qatorlarga o‘tadi). */
+function allocateSupplierPurchasePaid(lineTotals, orderPaid, onCredit) {
+    if (!onCredit) {
+        const sum = lineTotals.reduce((s, t) => s + t, 0);
+        if (Math.abs(orderPaid - sum) > 1e-4 * Math.max(1, sum))
+            return null;
+        return lineTotals.map((t) => t);
+    }
+    let remaining = orderPaid;
+    return lineTotals.map((total) => {
+        const linePaid = Math.min(remaining, total);
+        remaining = Math.max(0, remaining - linePaid);
+        return linePaid;
+    });
+}
 function reducer(state, action) {
     switch (action.type) {
         case 'HYDRATE':
@@ -301,6 +502,233 @@ function reducer(state, action) {
             };
         case 'SUPPLIER_PURCHASE_ADD':
             return { ...state, supplierPurchases: [action.payload, ...state.supplierPurchases] };
+        case 'SUPPLIER_PURCHASE_BATCH': {
+            const { supplierId, incomeDate, notes, onCredit, paidAmount, lines } = action.payload;
+            if (!lines.length)
+                return state;
+            const supplier = state.suppliers.find((s) => s.id === supplierId);
+            if (!supplier)
+                return state;
+            const resolved = [];
+            for (const line of lines) {
+                const item = state.warehouseItems.find((w) => w.id === line.warehouseItemId);
+                if (!item)
+                    return state;
+                const qty = normalizeSupplierPurchaseQty(item, line.quantity);
+                if (qty == null)
+                    return state;
+                const p = line.purchasePricePerUnit;
+                const hasPositive = p != null && Number.isFinite(p) && p > 0;
+                const lineTotal = hasPositive ? p * qty : null;
+                resolved.push({
+                    warehouseItemId: line.warehouseItemId,
+                    quantity: qty,
+                    purchasePricePerUnit: line.purchasePricePerUnit,
+                    lineTotal,
+                });
+            }
+            const priced = resolved.filter((r) => r.lineTotal != null);
+            const orderTotal = priced.reduce((s, r) => s + r.lineTotal, 0);
+            let perLinePaid = resolved.map(() => null);
+            if (orderTotal > 0) {
+                const paidRaw = paidAmount;
+                const paid = paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
+                if (paid == null)
+                    return state;
+                if (onCredit && paid > orderTotal + 1e-6)
+                    return state;
+                const totals = priced.map((r) => r.lineTotal);
+                const allocated = allocateSupplierPurchasePaid(totals, paid, onCredit);
+                if (!allocated)
+                    return state;
+                let ai = 0;
+                perLinePaid = resolved.map((r) => {
+                    if (r.lineTotal == null)
+                        return null;
+                    const v = allocated[ai];
+                    ai += 1;
+                    return v;
+                });
+            }
+            let warehouseItems = state.warehouseItems;
+            const newRecords = [];
+            const sharedNotes = notes?.trim() || null;
+            const purchaseBatchId = uid('spb');
+            const batchCreatedAt = new Date().toISOString();
+            for (let i = 0; i < resolved.length; i++) {
+                const r = resolved[i];
+                const result = buildSupplierPurchaseUpdate(supplier, warehouseItems, {
+                    warehouseItemId: r.warehouseItemId,
+                    quantity: r.quantity,
+                    incomeDate,
+                    notes: sharedNotes,
+                    purchasePricePerUnit: r.purchasePricePerUnit,
+                    paidAmount: perLinePaid[i],
+                    onCredit,
+                    purchaseBatchId,
+                    batchCreatedAt,
+                });
+                if (!result)
+                    return state;
+                warehouseItems = result.warehouseItems;
+                newRecords.push(result.record);
+            }
+            return {
+                ...state,
+                warehouseItems,
+                supplierPurchases: [...newRecords, ...state.supplierPurchases],
+            };
+        }
+        case 'SUPPLIER_PURCHASE_DELETE': {
+            const { id } = action.payload;
+            const old = state.supplierPurchases.find((p) => p.id === id);
+            if (!old)
+                return state;
+            const warehouseItems = reverseSupplierPurchaseWarehouse(state.warehouseItems, old.warehouseItemId, old.quantity);
+            if (!warehouseItems)
+                return state;
+            let supplierPurchases = state.supplierPurchases.filter((p) => p.id !== id);
+            supplierPurchases = reconcileSupplierPurchasesAfterChange(supplierPurchases, state.supplierDebtRepayments, old.supplierId);
+            return { ...state, warehouseItems, supplierPurchases };
+        }
+        case 'SUPPLIER_PURCHASE_BATCH_DELETE': {
+            const { batchId } = action.payload;
+            const olds = state.supplierPurchases.filter((p) => getSupplierPurchaseBatchKey(p) === batchId);
+            if (!olds.length)
+                return state;
+            let warehouseItems = state.warehouseItems;
+            for (const o of [...olds].reverse()) {
+                const rev = reverseSupplierPurchaseWarehouse(warehouseItems, o.warehouseItemId, o.quantity);
+                if (!rev)
+                    return state;
+                warehouseItems = rev;
+            }
+            let supplierPurchases = state.supplierPurchases.filter((p) => getSupplierPurchaseBatchKey(p) !== batchId);
+            const sid = olds[0].supplierId;
+            supplierPurchases = reconcileSupplierPurchasesAfterChange(supplierPurchases, state.supplierDebtRepayments, sid);
+            return { ...state, warehouseItems, supplierPurchases };
+        }
+        case 'SUPPLIER_PURCHASE_BATCH_REPLACE': {
+            const { batchId, supplierId, incomeDate, notes, onCredit, paidAmount, lines } = action.payload;
+            const supplier = state.suppliers.find((s) => s.id === supplierId);
+            if (!supplier || !lines.length)
+                return state;
+            const olds = state.supplierPurchases.filter((p) => getSupplierPurchaseBatchKey(p) === batchId);
+            if (!olds.length)
+                return state;
+            let warehouseItems = state.warehouseItems;
+            for (const o of [...olds].reverse()) {
+                const rev = reverseSupplierPurchaseWarehouse(warehouseItems, o.warehouseItemId, o.quantity);
+                if (!rev)
+                    return state;
+                warehouseItems = rev;
+            }
+            const batchCreatedAt = olds.reduce((min, p) => (p.createdAt < min ? p.createdAt : min), olds[0].createdAt);
+            let supplierPurchases = state.supplierPurchases.filter((p) => getSupplierPurchaseBatchKey(p) !== batchId);
+            const resolved = [];
+            for (const line of lines) {
+                const item = warehouseItems.find((w) => w.id === line.warehouseItemId);
+                if (!item)
+                    return state;
+                const qty = normalizeSupplierPurchaseQty(item, line.quantity);
+                if (qty == null)
+                    return state;
+                const p = line.purchasePricePerUnit;
+                const hasPositive = p != null && Number.isFinite(p) && p > 0;
+                resolved.push({
+                    warehouseItemId: line.warehouseItemId,
+                    quantity: qty,
+                    purchasePricePerUnit: line.purchasePricePerUnit,
+                    lineTotal: hasPositive ? p * qty : null,
+                });
+            }
+            const priced = resolved.filter((r) => r.lineTotal != null);
+            const orderTotal = priced.reduce((s, r) => s + r.lineTotal, 0);
+            let perLinePaid = resolved.map(() => null);
+            if (orderTotal > 0) {
+                const paidRaw = paidAmount;
+                const paid = paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
+                if (paid == null)
+                    return state;
+                if (onCredit && paid > orderTotal + 1e-6)
+                    return state;
+                const allocated = allocateSupplierPurchasePaid(priced.map((r) => r.lineTotal), paid, onCredit);
+                if (!allocated)
+                    return state;
+                let ai = 0;
+                perLinePaid = resolved.map((r) => {
+                    if (r.lineTotal == null)
+                        return null;
+                    const v = allocated[ai];
+                    ai += 1;
+                    return v;
+                });
+            }
+            const newRecords = [];
+            const sharedNotes = notes?.trim() || null;
+            for (let i = 0; i < resolved.length; i++) {
+                const r = resolved[i];
+                const result = buildSupplierPurchaseUpdate(supplier, warehouseItems, {
+                    warehouseItemId: r.warehouseItemId,
+                    quantity: r.quantity,
+                    incomeDate,
+                    notes: sharedNotes,
+                    purchasePricePerUnit: r.purchasePricePerUnit,
+                    paidAmount: perLinePaid[i],
+                    onCredit,
+                    purchaseBatchId: batchId,
+                    batchCreatedAt,
+                });
+                if (!result)
+                    return state;
+                warehouseItems = result.warehouseItems;
+                newRecords.push(result.record);
+            }
+            supplierPurchases = [...newRecords, ...supplierPurchases];
+            supplierPurchases = reconcileSupplierPurchasesAfterChange(supplierPurchases, state.supplierDebtRepayments, supplierId);
+            return { ...state, warehouseItems, supplierPurchases };
+        }
+        case 'SUPPLIER_PURCHASE_UPDATE': {
+            const { id, supplierId, supplierName, warehouseItemId, quantity, incomeDate, notes, purchasePricePerUnit, paidAmount, onCredit, } = action.payload;
+            const old = state.supplierPurchases.find((p) => p.id === id);
+            if (!old)
+                return state;
+            const supplierStub = {
+                id: supplierId ?? 'orphan',
+                fullName: supplierName,
+                phone: '',
+                address: '',
+                notes: '',
+                createdAt: old.createdAt,
+            };
+            if (supplierId && !state.suppliers.some((s) => s.id === supplierId))
+                return state;
+            let warehouseItems = reverseSupplierPurchaseWarehouse(state.warehouseItems, old.warehouseItemId, old.quantity);
+            if (!warehouseItems)
+                return state;
+            const purchasesWithout = state.supplierPurchases.filter((p) => p.id !== id);
+            const result = buildSupplierPurchaseUpdate(supplierStub, warehouseItems, {
+                warehouseItemId,
+                quantity,
+                incomeDate,
+                notes: notes ?? null,
+                purchasePricePerUnit,
+                paidAmount,
+                onCredit,
+                recordSupplierId: supplierId,
+                recordSupplierName: supplierName,
+            }, { id: old.id, createdAt: old.createdAt });
+            if (!result)
+                return state;
+            let supplierPurchases = [...purchasesWithout, result.record];
+            if (old.supplierId && old.supplierId !== supplierId) {
+                supplierPurchases = reconcileSupplierPurchasesAfterChange(supplierPurchases, state.supplierDebtRepayments, old.supplierId);
+            }
+            if (supplierId) {
+                supplierPurchases = reconcileSupplierPurchasesAfterChange(supplierPurchases, state.supplierDebtRepayments, supplierId);
+            }
+            return { ...state, warehouseItems: result.warehouseItems, supplierPurchases };
+        }
         case 'SUPPLIER_DEBT_REPAYMENT_ADD': {
             const repayment = action.payload;
             const supplierPurchases = applyRepaymentToSupplierPurchases(state.supplierPurchases, repayment);
@@ -587,7 +1015,7 @@ function reducer(state, action) {
                 return state;
             if (!state.customers.some((c) => c.id === customerId))
                 return state;
-            const oldOutcomes = state.outcomes.filter((o) => o.type === 'SOLD' && o.posOrderId === posOrderId);
+            const oldOutcomes = soldOutcomesForOrderKey(state.outcomes, posOrderId);
             if (!oldOutcomes.length)
                 return state;
             const map = cloneWarehouseItemMap(state.warehouseItems);
@@ -595,7 +1023,7 @@ function reducer(state, action) {
                 if (!restoreKgSoldOutcome(map, o))
                     return state;
             }
-            const outcomesWithout = state.outcomes.filter((o) => !(o.type === 'SOLD' && o.posOrderId === posOrderId));
+            const outcomesWithout = state.outcomes.filter((o) => !isSoldOutcomeForOrderKey(o, posOrderId));
             const oldFirst = oldOutcomes[0];
             const oldCid = oldFirst.customerId;
             const oldOrderTotal = oldOutcomes.reduce((s, o) => s + (o.totalAmount ?? 0), 0);
@@ -674,6 +1102,41 @@ function reducer(state, action) {
                 customers: nextCustomers,
             };
         }
+        case 'POS_ORDER_DELETE': {
+            const { orderId } = action.payload;
+            const oldOutcomes = soldOutcomesForOrderKey(state.outcomes, orderId);
+            if (!oldOutcomes.length)
+                return state;
+            const map = cloneWarehouseItemMap(state.warehouseItems);
+            for (const o of [...oldOutcomes].reverse()) {
+                if (!restoreKgSoldOutcome(map, o))
+                    return state;
+            }
+            const oldFirst = oldOutcomes[0];
+            const oldCid = oldFirst.customerId;
+            const oldOrderTotal = oldOutcomes.reduce((s, o) => s + (o.totalAmount ?? 0), 0);
+            const oldPaidRaw = oldFirst.orderPaidTotal;
+            const oldPaid = oldPaidRaw != null && Number.isFinite(oldPaidRaw)
+                ? Math.max(0, Math.min(oldPaidRaw, oldOrderTotal))
+                : oldOrderTotal;
+            const oldDebt = Math.max(0, oldOrderTotal - oldPaid);
+            let nextCustomers = state.customers;
+            if (oldCid) {
+                nextCustomers = nextCustomers.map((c) => c.id === oldCid
+                    ? {
+                        ...c,
+                        totalSpent: Math.max(0, c.totalSpent - oldOrderTotal),
+                        balanceDue: Math.max(0, c.balanceDue - oldDebt),
+                    }
+                    : c);
+            }
+            return {
+                ...state,
+                warehouseItems: state.warehouseItems.map((w) => map.get(w.id)),
+                outcomes: state.outcomes.filter((o) => !isSoldOutcomeForOrderKey(o, orderId)),
+                customers: nextCustomers,
+            };
+        }
         case 'EXPENSE_CATEGORY_ADD':
             return {
                 ...state,
@@ -713,7 +1176,7 @@ function reducer(state, action) {
             return state;
     }
 }
-/** Shu postavchikka tegishli xaridlar bo‘yicha qoldiq qarz (`supplierDebtAmount` yig‘indisi). */
+/** Shu ko‘cha obyektiga tegishli xaridlar bo‘yicha qoldiq qarz (`supplierDebtAmount` yig‘indisi). */
 export function getSupplierPurchaseDebtIncurred(state, supplierId) {
     return state.supplierPurchases.reduce((sum, p) => {
         if (p.supplierId !== supplierId)
@@ -739,7 +1202,7 @@ export function getSupplierDebtRepaid(state, supplierId) {
 export function getSupplierRemainingDebt(state, supplierId) {
     return getSupplierPurchaseDebtIncurred(state, supplierId);
 }
-/** Ro‘yxatdan o‘chirilgan postavchik (`supplierId` null) xaridlaridagi qarz. */
+/** Ro‘yxatdan o‘chirilgan ko‘cha obyekti (`supplierId` null) xaridlaridagi qarz. */
 export function getOrphanSupplierDebtIncurred(state) {
     return state.supplierPurchases.reduce((sum, p) => {
         if (p.supplierId != null)
@@ -749,6 +1212,132 @@ export function getOrphanSupplierDebtIncurred(state) {
             return sum;
         return sum + d;
     }, 0);
+}
+function canReverseSupplierPurchase(state, warehouseItemId, quantity) {
+    const item = state.warehouseItems.find((w) => w.id === warehouseItemId);
+    if (!item)
+        return false;
+    let qty = quantity;
+    if (item.unit === 'pcs')
+        qty = Math.floor(qty);
+    return Number.isFinite(qty) && qty > 0 && item.currentQty >= qty - 1e-9;
+}
+function canDeleteSupplierPurchase(state, purchaseId) {
+    const old = state.supplierPurchases.find((p) => p.id === purchaseId);
+    if (!old)
+        return false;
+    return canReverseSupplierPurchase(state, old.warehouseItemId, old.quantity);
+}
+function purchasesInBatch(state, batchId) {
+    return state.supplierPurchases.filter((p) => getSupplierPurchaseBatchKey(p) === batchId);
+}
+function canDeleteSupplierPurchaseBatch(state, batchId) {
+    const olds = purchasesInBatch(state, batchId);
+    if (!olds.length)
+        return false;
+    let items = state.warehouseItems;
+    for (const o of [...olds].reverse()) {
+        const rev = reverseSupplierPurchaseWarehouse(items, o.warehouseItemId, o.quantity);
+        if (!rev)
+            return false;
+        items = rev;
+    }
+    return true;
+}
+function canReplaceSupplierPurchaseBatch(state, batchId, input) {
+    if (!canDeleteSupplierPurchaseBatch(state, batchId))
+        return false;
+    return canPurchaseLinesFromSupplier(state, input.supplierId, {
+        lines: input.lines,
+        paidAmount: input.paidAmount,
+        onCredit: input.onCredit,
+    });
+}
+function canUpdateSupplierPurchase(state, purchaseId, input) {
+    const old = state.supplierPurchases.find((p) => p.id === purchaseId);
+    if (!old)
+        return false;
+    if (input.supplierId && !state.suppliers.some((s) => s.id === input.supplierId))
+        return false;
+    if (!canReverseSupplierPurchase(state, old.warehouseItemId, old.quantity))
+        return false;
+    const item = state.warehouseItems.find((w) => w.id === input.warehouseItemId);
+    if (!item)
+        return false;
+    const qty = normalizeSupplierPurchaseQty(item, input.quantity);
+    if (qty == null)
+        return false;
+    let items = reverseSupplierPurchaseWarehouse(state.warehouseItems, old.warehouseItemId, old.quantity);
+    if (!items)
+        return false;
+    const supplier = input.supplierId
+        ? state.suppliers.find((s) => s.id === input.supplierId)
+        : null;
+    const supplierStub = supplier ?? {
+        id: 'orphan',
+        fullName: old.supplierName,
+        phone: '',
+        address: '',
+        notes: '',
+        createdAt: old.createdAt,
+    };
+    const p = input.purchasePricePerUnit;
+    const hasPositive = p != null && Number.isFinite(p) && p > 0;
+    const lineTotal = hasPositive ? p * qty : null;
+    const paidRaw = input.paidAmount;
+    const paid = paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
+    if (lineTotal != null) {
+        if (paid == null)
+            return false;
+        if (input.onCredit) {
+            if (paid > lineTotal + 1e-6)
+                return false;
+        }
+        else if (Math.abs(paid - lineTotal) > 1e-4 * Math.max(1, lineTotal)) {
+            return false;
+        }
+    }
+    const result = buildSupplierPurchaseUpdate(supplierStub, items, {
+        warehouseItemId: input.warehouseItemId,
+        quantity: qty,
+        incomeDate: old.incomeDate,
+        purchasePricePerUnit: input.purchasePricePerUnit,
+        paidAmount: paid,
+        onCredit: input.onCredit,
+        recordSupplierId: input.supplierId,
+        recordSupplierName: supplier?.fullName ?? old.supplierName,
+    }, { id: old.id, createdAt: old.createdAt });
+    return result != null;
+}
+function canPurchaseLinesFromSupplier(state, supplierId, input) {
+    if (!state.suppliers.some((s) => s.id === supplierId) || !input.lines.length)
+        return false;
+    const resolved = [];
+    for (const line of input.lines) {
+        const item = state.warehouseItems.find((w) => w.id === line.warehouseItemId);
+        if (!item)
+            return false;
+        const qty = normalizeSupplierPurchaseQty(item, line.quantity);
+        if (qty == null)
+            return false;
+        const p = line.purchasePricePerUnit;
+        const hasPositive = p != null && Number.isFinite(p) && p > 0;
+        resolved.push({ lineTotal: hasPositive ? p * qty : null });
+    }
+    const priced = resolved.filter((r) => r.lineTotal != null);
+    const orderTotal = priced.reduce((s, r) => s + r.lineTotal, 0);
+    if (orderTotal <= 0)
+        return true;
+    const paidRaw = input.paidAmount;
+    const paid = paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
+    if (paid == null)
+        return false;
+    if (input.onCredit) {
+        if (paid > orderTotal + 1e-6)
+            return false;
+        return allocateSupplierPurchasePaid(priced.map((r) => r.lineTotal), paid, true) != null;
+    }
+    return allocateSupplierPurchasePaid(priced.map((r) => r.lineTotal), paid, false) != null;
 }
 function canPosCheckout(state, input) {
     const { lines, paidAmount, customerId } = input;
@@ -777,7 +1366,7 @@ function canPosOrderUpdate(state, input) {
         return false;
     if (!state.customers.some((c) => c.id === input.customerId))
         return false;
-    const oldOutcomes = state.outcomes.filter((o) => o.type === 'SOLD' && o.posOrderId === input.posOrderId);
+    const oldOutcomes = soldOutcomesForOrderKey(state.outcomes, input.posOrderId);
     if (!oldOutcomes.length)
         return false;
     const map = cloneWarehouseItemMap(state.warehouseItems);
@@ -805,13 +1394,12 @@ function canPosOrderUpdate(state, input) {
     return true;
 }
 const StoreContext = createContext(null);
-function readStoredState() {
+/** localStorage yoki serverdan kelgan qisman JSON ni to‘liq holatga keltiradi. */
+export function normalizeAppState(parsed) {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) {
+        if (!parsed || typeof parsed !== 'object') {
             return { ...INITIAL_STATE, expenseCategories: buildDefaultExpenseCategories() };
         }
-        const parsed = JSON.parse(raw);
         const customers = Array.isArray(parsed.customers)
             ? parsed.customers.map((c) => ({
                 ...c,
@@ -821,7 +1409,7 @@ function readStoredState() {
         const suppliers = Array.isArray(parsed.suppliers) ? parsed.suppliers : [];
         const hasPurchaseStorage = parsed !== null && typeof parsed === 'object' && 'supplierPurchases' in parsed;
         let supplierPurchases = Array.isArray(parsed.supplierPurchases) ? parsed.supplierPurchases : [];
-        /** Eski saqlanmalar: `supplierPurchases` kaliti yo‘q bo‘lsa, ombordagi postavchik kirimlaridan bir marta to‘ldirish. */
+        /** Eski saqlanmalar: `supplierPurchases` kaliti yo‘q bo‘lsa, ombordagi ko‘cha obyekti kirimlaridan bir marta to‘ldirish. */
         if (!hasPurchaseStorage &&
             Array.isArray(parsed.warehouseItems) &&
             parsed.warehouseItems.length > 0) {
@@ -852,6 +1440,7 @@ function readStoredState() {
             ? parsed.customerDebtRepayments
             : [];
         supplierPurchases = reconcileSupplierPurchasesDebtsWithRepayments(supplierPurchases, supplierDebtRepayments);
+        supplierPurchases = migrateSupplierPurchaseBatchIds(supplierPurchases);
         supplierPurchases = syncAllSupplierPurchasesPaidFromTotals(supplierPurchases);
         const hasExpenseCategoryStorage = parsed !== null && typeof parsed === 'object' && 'expenseCategories' in parsed;
         const expenseCategories = Array.isArray(parsed.expenseCategories)
@@ -876,10 +1465,27 @@ function readStoredState() {
         return { ...INITIAL_STATE, expenseCategories: buildDefaultExpenseCategories() };
     }
 }
+function readStoredState() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw)
+            return normalizeAppState(null);
+        return normalizeAppState(JSON.parse(raw));
+    }
+    catch {
+        return normalizeAppState(null);
+    }
+}
+const SHARED_SYNC_POLL_MS = 5000;
+const SHARED_SYNC_DEBOUNCE_MS = 1200;
 export function SaralashProvider({ children }) {
+    const { sessionMode, isAuthenticated, loading } = useAuth();
     const [state, dispatch] = useReducer(reducer, undefined, () => readStoredState());
     const stateRef = useRef(state);
     stateRef.current = state;
+    const serverUpdatedAtRef = useRef(null);
+    const applyingRemoteRef = useRef(false);
+    const [syncReady, setSyncReady] = useState(false);
     useEffect(() => {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -888,6 +1494,95 @@ export function SaralashProvider({ children }) {
             /* ignore */
         }
     }, [state]);
+    useEffect(() => {
+        if (loading || !isAuthenticated || sessionMode !== 'api') {
+            setSyncReady(false);
+            serverUpdatedAtRef.current = null;
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const remote = await fetchSharedAppState();
+                if (cancelled)
+                    return;
+                if (remote.updatedAt && remote.payload) {
+                    applyingRemoteRef.current = true;
+                    dispatch({
+                        type: 'HYDRATE',
+                        payload: normalizeAppState(remote.payload),
+                    });
+                    serverUpdatedAtRef.current = remote.updatedAt;
+                }
+                else {
+                    const put = await putSharedAppState(stateRef.current);
+                    serverUpdatedAtRef.current = put.updatedAt;
+                }
+            }
+            catch {
+                /* server yo‘q — faqat mahalliy cache */
+            }
+            finally {
+                applyingRemoteRef.current = false;
+                if (!cancelled)
+                    setSyncReady(true);
+            }
+        })();
+        return () => {
+            cancelled = true;
+            setSyncReady(false);
+        };
+    }, [loading, isAuthenticated, sessionMode]);
+    useEffect(() => {
+        if (!syncReady || sessionMode !== 'api' || !isAuthenticated || applyingRemoteRef.current)
+            return;
+        const timer = window.setTimeout(() => {
+            if (applyingRemoteRef.current)
+                return;
+            void putSharedAppState(stateRef.current)
+                .then((put) => {
+                serverUpdatedAtRef.current = put.updatedAt;
+            })
+                .catch(() => {
+                /* ignore */
+            });
+        }, SHARED_SYNC_DEBOUNCE_MS);
+        return () => window.clearTimeout(timer);
+    }, [state, syncReady, sessionMode, isAuthenticated]);
+    useEffect(() => {
+        if (!syncReady || sessionMode !== 'api' || !isAuthenticated)
+            return;
+        const pull = async () => {
+            try {
+                const remote = await fetchSharedAppState();
+                if (!remote.payload || !remote.updatedAt)
+                    return;
+                if (serverUpdatedAtRef.current &&
+                    remote.updatedAt <= serverUpdatedAtRef.current) {
+                    return;
+                }
+                applyingRemoteRef.current = true;
+                dispatch({
+                    type: 'HYDRATE',
+                    payload: normalizeAppState(remote.payload),
+                });
+                serverUpdatedAtRef.current = remote.updatedAt;
+            }
+            catch {
+                /* ignore */
+            }
+            finally {
+                applyingRemoteRef.current = false;
+            }
+        };
+        const interval = window.setInterval(() => void pull(), SHARED_SYNC_POLL_MS);
+        const onFocus = () => void pull();
+        window.addEventListener('focus', onFocus);
+        return () => {
+            window.clearInterval(interval);
+            window.removeEventListener('focus', onFocus);
+        };
+    }, [syncReady, sessionMode, isAuthenticated]);
     const addCustomer = useCallback((input) => {
         const customer = {
             ...input,
@@ -1059,81 +1754,84 @@ export function SaralashProvider({ children }) {
             return;
         dispatch({ type: 'WAREHOUSE_APPEND_SPLITS_TO_PARENT', payload: { parent, splits } });
     }, []);
+    const purchaseLinesFromSupplier = useCallback((supplierId, input) => {
+        if (!canPurchaseLinesFromSupplier(stateRef.current, supplierId, input))
+            return false;
+        dispatch({ type: 'SUPPLIER_PURCHASE_BATCH', payload: { supplierId, ...input } });
+        return true;
+    }, []);
     const purchaseFromSupplier = useCallback((supplierId, input) => {
-        const supplier = stateRef.current.suppliers.find((s) => s.id === supplierId);
-        if (!supplier)
-            return null;
-        const item = stateRef.current.warehouseItems.find((w) => w.id === input.parentWarehouseItemId);
-        if (!item)
-            return null;
-        let qty = input.quantity;
-        if (!Number.isFinite(qty) || qty <= 0)
-            return null;
-        if (item.unit === 'pcs') {
-            qty = Math.floor(qty);
-            if (qty < 1)
-                return null;
-        }
-        const p = input.purchasePricePerUnit;
-        const hasPositive = p != null && Number.isFinite(p) && p > 0;
-        const lineTotal = hasPositive ? p * qty : null;
-        const paidRaw = input.paidAmount;
-        const paid = paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
-        if (lineTotal != null) {
-            if (paid == null)
-                return null;
-            if (input.onCredit) {
-                if (paid > lineTotal + 1e-6)
-                    return null;
-            }
-            else if (Math.abs(paid - lineTotal) > 1e-4 * Math.max(1, lineTotal)) {
-                return null;
-            }
-        }
-        const debt = lineTotal != null && paid != null ? Math.max(0, lineTotal - paid) : null;
-        const onCreditFlag = Boolean(input.onCredit && lineTotal != null && debt != null && debt > 1e-6);
-        const newQty = item.currentQty + qty;
-        const newInitial = item.initialQty + qty;
-        const mergedNotes = [item.notes?.trim(), input.notes?.trim()].filter(Boolean).join(' | ') || undefined;
-        const updated = {
-            ...item,
-            currentQty: newQty,
-            initialQty: newInitial,
+        const ok = purchaseLinesFromSupplier(supplierId, {
             incomeDate: input.incomeDate,
-            purchasePricePerUnit: hasPositive ? p : null,
-            supplierId: supplier.id,
-            supplierName: supplier.fullName,
-            notes: mergedNotes,
-            status: newQty > 0 ? 'IN_STOCK' : item.status,
-        };
-        dispatch({ type: 'WAREHOUSE_UPDATE', payload: updated });
-        const parentRow = item.parentWarehouseId
-            ? stateRef.current.warehouseItems.find((w) => w.id === item.parentWarehouseId)
+            notes: input.notes,
+            onCredit: input.onCredit ?? false,
+            paidAmount: input.paidAmount,
+            lines: [
+                {
+                    warehouseItemId: input.parentWarehouseItemId,
+                    quantity: input.quantity,
+                    purchasePricePerUnit: input.purchasePricePerUnit,
+                },
+            ],
+        });
+        if (!ok)
+            return null;
+        return (stateRef.current.warehouseItems.find((w) => w.id === input.parentWarehouseItemId) ?? null);
+    }, [purchaseLinesFromSupplier]);
+    const deleteSupplierPurchase = useCallback((purchaseId) => {
+        if (!canDeleteSupplierPurchase(stateRef.current, purchaseId))
+            return false;
+        dispatch({ type: 'SUPPLIER_PURCHASE_DELETE', payload: { id: purchaseId } });
+        return true;
+    }, []);
+    const deleteSupplierPurchaseBatch = useCallback((batchId) => {
+        if (!canDeleteSupplierPurchaseBatch(stateRef.current, batchId))
+            return false;
+        dispatch({ type: 'SUPPLIER_PURCHASE_BATCH_DELETE', payload: { batchId } });
+        return true;
+    }, []);
+    const replaceSupplierPurchaseBatch = useCallback((batchId, input) => {
+        if (!canReplaceSupplierPurchaseBatch(stateRef.current, batchId, input))
+            return false;
+        dispatch({ type: 'SUPPLIER_PURCHASE_BATCH_REPLACE', payload: { batchId, ...input } });
+        return true;
+    }, []);
+    const updateSupplierPurchase = useCallback((purchaseId, input) => {
+        const old = stateRef.current.supplierPurchases.find((p) => p.id === purchaseId);
+        if (!old)
+            return false;
+        const supplier = input.supplierId
+            ? stateRef.current.suppliers.find((s) => s.id === input.supplierId)
             : null;
-        const historyProductName = parentRow
-            ? `${item.productName} (${parentRow.productName})`
-            : item.productName;
-        const record = {
-            id: uid('sph'),
-            supplierId: supplier.id,
-            supplierName: supplier.fullName,
-            warehouseItemId: item.id,
-            incomeDate: input.incomeDate,
-            productName: historyProductName,
-            category: item.category,
-            unit: item.unit,
-            quantity: qty,
-            pricePerUnit: hasPositive ? p : null,
-            totalAmount: lineTotal,
-            paidAmount: lineTotal != null ? paid : null,
-            supplierDebtAmount: debt,
-            onCredit: onCreditFlag,
-            notes: input.notes?.trim() || null,
-            createdAt: new Date().toISOString(),
-        };
-        dispatch({ type: 'SUPPLIER_PURCHASE_ADD', payload: record });
-        return updated;
-    }, [dispatch]);
+        if (input.supplierId && !supplier)
+            return false;
+        if (!canUpdateSupplierPurchase(stateRef.current, purchaseId, {
+            supplierId: input.supplierId,
+            warehouseItemId: input.warehouseItemId,
+            quantity: input.quantity,
+            purchasePricePerUnit: input.purchasePricePerUnit,
+            paidAmount: input.paidAmount,
+            onCredit: input.onCredit,
+        })) {
+            return false;
+        }
+        dispatch({
+            type: 'SUPPLIER_PURCHASE_UPDATE',
+            payload: {
+                id: purchaseId,
+                supplierId: input.supplierId,
+                supplierName: supplier?.fullName ?? old.supplierName,
+                warehouseItemId: input.warehouseItemId,
+                quantity: input.quantity,
+                incomeDate: input.incomeDate,
+                notes: input.notes,
+                purchasePricePerUnit: input.purchasePricePerUnit,
+                paidAmount: input.paidAmount,
+                onCredit: input.onCredit,
+            },
+        });
+        return true;
+    }, []);
     const updateWarehouseItem = useCallback((item) => {
         dispatch({ type: 'WAREHOUSE_UPDATE', payload: item });
     }, []);
@@ -1182,6 +1880,18 @@ export function SaralashProvider({ children }) {
         if (!canPosOrderUpdate(stateRef.current, input))
             return false;
         dispatch({ type: 'POS_ORDER_UPDATE', payload: input });
+        return true;
+    }, []);
+    const deletePosOrder = useCallback((orderId) => {
+        const oldOutcomes = soldOutcomesForOrderKey(stateRef.current.outcomes, orderId);
+        if (!oldOutcomes.length)
+            return false;
+        const map = cloneWarehouseItemMap(stateRef.current.warehouseItems);
+        for (const o of [...oldOutcomes].reverse()) {
+            if (!restoreKgSoldOutcome(map, o))
+                return false;
+        }
+        dispatch({ type: 'POS_ORDER_DELETE', payload: { orderId } });
         return true;
     }, []);
     const addExpenseCategory = useCallback((input) => {
@@ -1273,6 +1983,11 @@ export function SaralashProvider({ children }) {
         deleteSupplier,
         recordSupplierDebtRepayment,
         purchaseFromSupplier,
+        purchaseLinesFromSupplier,
+        deleteSupplierPurchase,
+        deleteSupplierPurchaseBatch,
+        replaceSupplierPurchaseBatch,
+        updateSupplierPurchase,
         addIntake,
         deleteIntake,
         distributeIntake,
@@ -1286,6 +2001,7 @@ export function SaralashProvider({ children }) {
         recordOutcome,
         posCheckout,
         updatePosOrder,
+        deletePosOrder,
         addExpenseCategory,
         updateExpenseCategory,
         deleteExpenseCategory,
@@ -1303,6 +2019,11 @@ export function SaralashProvider({ children }) {
         deleteSupplier,
         recordSupplierDebtRepayment,
         purchaseFromSupplier,
+        purchaseLinesFromSupplier,
+        deleteSupplierPurchase,
+        deleteSupplierPurchaseBatch,
+        replaceSupplierPurchaseBatch,
+        updateSupplierPurchase,
         addIntake,
         deleteIntake,
         distributeIntake,
@@ -1316,6 +2037,7 @@ export function SaralashProvider({ children }) {
         recordOutcome,
         posCheckout,
         updatePosOrder,
+        deletePosOrder,
         addExpenseCategory,
         updateExpenseCategory,
         deleteExpenseCategory,

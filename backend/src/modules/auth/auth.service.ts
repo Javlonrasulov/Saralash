@@ -15,6 +15,7 @@ import {
   type AppRouteKey,
   isAppRouteKey,
 } from '../../common/constants/app-routes.js';
+import { isValidLogin, normalizeLoginInput } from '../../common/utils/login.util.js';
 
 export interface SessionPayload {
   user: {
@@ -37,8 +38,9 @@ export class AuthService {
   ) {}
 
   async login(identifier: string, password: string): Promise<SessionPayload> {
+    const login = normalizeLoginInput(identifier);
     const user = await this.prisma.user.findFirst({
-      where: { OR: [{ login: identifier.toLowerCase() }] },
+      where: { login },
     });
     if (!user || !user.isActive) throw new UnauthorizedException('Login yoki parol notoʻgʻri');
 
@@ -96,9 +98,9 @@ export class AuthService {
     const pwdOk = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!pwdOk) throw new ForbiddenException('WRONG_CURRENT_PASSWORD');
 
-    const nlRaw = dto.newLogin?.trim().toLowerCase();
+    const nlRaw = dto.newLogin ? normalizeLoginInput(dto.newLogin) : '';
     const npRaw = dto.newPassword?.trim();
-    const wantsLoginChange = Boolean(nlRaw && nlRaw.length >= 2 && nlRaw !== user.login);
+    const wantsLoginChange = Boolean(nlRaw && isValidLogin(nlRaw) && nlRaw !== user.login);
     const wantsPasswordChange = Boolean(npRaw && npRaw.length >= 4);
 
     if (!wantsLoginChange && !wantsPasswordChange) {
@@ -177,7 +179,8 @@ export class AuthService {
     });
     const refreshToken = randomBytes(48).toString('hex');
     const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+    const refreshDays = Number(process.env.JWT_REFRESH_DAYS ?? 30);
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * refreshDays);
 
     await this.prisma.refreshToken.create({
       data: { userId: user.id, tokenHash, expiresAt },
