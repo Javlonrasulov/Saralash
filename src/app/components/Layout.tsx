@@ -46,6 +46,8 @@ import {
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { NavbarDateRangePicker } from './NavbarDateRangePicker';
+import { useNavDateFilter } from '../context/nav-date-range-context';
+import { formatYmdDisplay } from '../lib/nav-date-range';
 
 const LANG_OPTIONS: { value: Language; short: string; label: string; flag: string }[] = [
   { value: 'uz_latin', short: 'LT', label: "O'zbek (Lotin)", flag: '🇺🇿' },
@@ -338,6 +340,18 @@ function ProfileCredentialsDialog({
   );
 }
 
+function NavMobileDateRangeBar() {
+  const { filter } = useNavDateFilter();
+  if (filter.mode !== 'range') return null;
+  return (
+    <div className="border-t border-indigo-100 bg-indigo-50/60 px-3 py-1.5 lg:hidden dark:border-indigo-900/40 dark:bg-indigo-950/30">
+      <p className="nums text-center text-xs font-semibold text-indigo-800 dark:text-indigo-200">
+        {formatYmdDisplay(filter.from)} — {formatYmdDisplay(filter.to)}
+      </p>
+    </div>
+  );
+}
+
 export function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -497,7 +511,8 @@ export function Layout() {
         }`}
       >
         {/* Header */}
-        <header className="z-10 shrink-0 border-b border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900 lg:flex lg:h-14 lg:items-center lg:gap-3 lg:px-5 lg:py-0">
+        <header className="z-10 shrink-0 border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-col px-3 py-2 lg:h-14 lg:flex-row lg:items-center lg:gap-3 lg:px-5 lg:py-0">
           <div className="flex min-w-0 items-center gap-2 lg:flex-1">
             <button
               type="button"
@@ -581,6 +596,8 @@ export function Layout() {
               <LogOut size={16} />
             </button>
           </div>
+          </div>
+          <NavMobileDateRangeBar />
         </header>
 
         <ProfileCredentialsDialog open={profileOpen} onOpenChange={setProfileOpen} />

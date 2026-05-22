@@ -90,7 +90,43 @@ const COPPER_META: CategoryMeta = {
   Icon: Coins,
 };
 
-type ResolvedCategoryId = keyof typeof META | 'copper' | 'other';
+export type ProductIconKey = keyof typeof META | 'copper' | 'other';
+
+export const PRODUCT_ICON_OPTIONS: ProductIconKey[] = [
+  'paper',
+  'plastic',
+  'glass',
+  'metal',
+  'copper',
+  'cardboard',
+  'other',
+];
+
+type ResolvedCategoryId = ProductIconKey;
+
+export function isProductIconKey(v: string): v is ProductIconKey {
+  return (PRODUCT_ICON_OPTIONS as string[]).includes(v);
+}
+
+export function resolveProductIconKey(category: CategoryKey): ProductIconKey {
+  return resolveCategoryId(String(category));
+}
+
+/** Ro‘yxatda ko‘rsatish: tanlangan ikonka yoki kategoriyadan taxmin. */
+export function warehouseDisplayIconKey(item: {
+  category: CategoryKey;
+  productIconKey?: string | null;
+}): ProductIconKey {
+  const raw = item.productIconKey?.trim();
+  if (raw && isProductIconKey(raw)) return raw;
+  return resolveProductIconKey(item.category);
+}
+
+export function productIconMeta(key: ProductIconKey): CategoryMeta {
+  if (key === 'copper') return COPPER_META;
+  if (key === 'other') return FALLBACK;
+  return META[key];
+}
 
 function resolveCategoryId(key: string): ResolvedCategoryId {
   const lower = key.trim().toLowerCase();
@@ -116,10 +152,7 @@ function resolveCategoryId(key: string): ResolvedCategoryId {
 }
 
 export function categoryMeta(key: CategoryKey): CategoryMeta {
-  const id = resolveCategoryId(String(key));
-  if (id === 'copper') return COPPER_META;
-  if (id === 'other') return FALLBACK;
-  return META[id];
+  return productIconMeta(resolveCategoryId(String(key)));
 }
 
 const BOX_SIZE = { sm: 'h-7 w-7', md: 'h-10 w-10' } as const;
@@ -142,14 +175,19 @@ export function CategoryIconGlyph({
 /** Mahsulot qatori yonidagi kategoriya ikonkasi (SVG, emoji emas). */
 export function CategoryProductIcon({
   category,
+  iconKey,
   size = 'sm',
   className,
 }: {
-  category: CategoryKey;
+  category?: CategoryKey;
+  /** Formadan tanlangan ikonka; bo‘lmasa `category` bo‘yicha taxmin. */
+  iconKey?: ProductIconKey | null;
   size?: 'sm' | 'md';
   className?: string;
 }) {
-  const meta = categoryMeta(category);
+  const meta = productIconMeta(
+    iconKey ?? (category != null ? resolveProductIconKey(category) : 'other'),
+  );
   const Icon = meta.Icon;
   const px = ICON_PX[size];
   return (
@@ -177,6 +215,28 @@ export function categoryLabel(key: CategoryKey, t: T): string {
       return t.catGlass;
     case 'metal':
       return t.catMetal;
+    case 'cardboard':
+      return t.catCardboard;
+    case 'other':
+      return t.catOther;
+    default:
+      return key;
+  }
+}
+
+/** Mahsulot ikonkasi tanlovi (qog‘oz, plastik, mis …). */
+export function productIconLabel(key: ProductIconKey, t: T): string {
+  switch (key) {
+    case 'paper':
+      return t.catPaper;
+    case 'plastic':
+      return t.catPlastic;
+    case 'glass':
+      return t.catGlass;
+    case 'metal':
+      return t.catMetal;
+    case 'copper':
+      return t.catCopper;
     case 'cardboard':
       return t.catCardboard;
     case 'other':

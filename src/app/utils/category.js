@@ -67,6 +67,35 @@ const COPPER_META = {
     bar: 'bg-orange-600',
     Icon: Coins,
 };
+export const PRODUCT_ICON_OPTIONS = [
+    'paper',
+    'plastic',
+    'glass',
+    'metal',
+    'copper',
+    'cardboard',
+    'other',
+];
+export function isProductIconKey(v) {
+    return PRODUCT_ICON_OPTIONS.includes(v);
+}
+export function resolveProductIconKey(category) {
+    return resolveCategoryId(String(category));
+}
+/** Ro‘yxatda ko‘rsatish: tanlangan ikonka yoki kategoriyadan taxmin. */
+export function warehouseDisplayIconKey(item) {
+    const raw = item.productIconKey?.trim();
+    if (raw && isProductIconKey(raw))
+        return raw;
+    return resolveProductIconKey(item.category);
+}
+export function productIconMeta(key) {
+    if (key === 'copper')
+        return COPPER_META;
+    if (key === 'other')
+        return FALLBACK;
+    return META[key];
+}
 function resolveCategoryId(key) {
     const lower = key.trim().toLowerCase();
     if (lower in META)
@@ -90,12 +119,7 @@ function resolveCategoryId(key) {
     return 'other';
 }
 export function categoryMeta(key) {
-    const id = resolveCategoryId(String(key));
-    if (id === 'copper')
-        return COPPER_META;
-    if (id === 'other')
-        return FALLBACK;
-    return META[id];
+    return productIconMeta(resolveCategoryId(String(key)));
 }
 const BOX_SIZE = { sm: 'h-7 w-7', md: 'h-10 w-10' };
 const ICON_PX = { sm: 15, md: 20 };
@@ -105,8 +129,8 @@ export function CategoryIconGlyph({ category, size = 16, className, }) {
     return _jsx(Icon, { className: cn(iconColor, className), size: size, strokeWidth: 2, "aria-hidden": true });
 }
 /** Mahsulot qatori yonidagi kategoriya ikonkasi (SVG, emoji emas). */
-export function CategoryProductIcon({ category, size = 'sm', className, }) {
-    const meta = categoryMeta(category);
+export function CategoryProductIcon({ category, iconKey, size = 'sm', className, }) {
+    const meta = productIconMeta(iconKey ?? (category != null ? resolveProductIconKey(category) : 'other'));
     const Icon = meta.Icon;
     const px = ICON_PX[size];
     return (_jsx("span", { className: cn('inline-flex shrink-0 items-center justify-center rounded-lg shadow-sm', meta.iconBox, BOX_SIZE[size], className), "aria-hidden": true, children: _jsx(Icon, { className: meta.iconColor, size: px, strokeWidth: 2 }) }));
@@ -121,6 +145,27 @@ export function categoryLabel(key, t) {
             return t.catGlass;
         case 'metal':
             return t.catMetal;
+        case 'cardboard':
+            return t.catCardboard;
+        case 'other':
+            return t.catOther;
+        default:
+            return key;
+    }
+}
+/** Mahsulot ikonkasi tanlovi (qog‘oz, plastik, mis …). */
+export function productIconLabel(key, t) {
+    switch (key) {
+        case 'paper':
+            return t.catPaper;
+        case 'plastic':
+            return t.catPlastic;
+        case 'glass':
+            return t.catGlass;
+        case 'metal':
+            return t.catMetal;
+        case 'copper':
+            return t.catCopper;
         case 'cardboard':
             return t.catCardboard;
         case 'other':

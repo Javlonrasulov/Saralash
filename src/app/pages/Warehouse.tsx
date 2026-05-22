@@ -45,7 +45,17 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { categoryLabel, categoryMeta, CategoryIconGlyph, CategoryProductIcon } from '../utils/category';
+import {
+  categoryLabel,
+  categoryMeta,
+  CategoryIconGlyph,
+  CategoryProductIcon,
+  PRODUCT_ICON_OPTIONS,
+  productIconLabel,
+  resolveProductIconKey,
+  warehouseDisplayIconKey,
+  type ProductIconKey,
+} from '../utils/category';
 import { formatDate, formatNumber, TODAY, uid } from '../utils/format';
 import { cn } from '../components/ui/utils';
 
@@ -87,6 +97,7 @@ function orderWarehouseRows(items: WarehouseItem[]): WarehouseItem[] {
 interface ProductFormState {
   productName: string;
   category: string;
+  productIconKey: ProductIconKey;
   unit: 'kg' | 'pcs';
   initialQty: string;
   incomeDate: string;
@@ -98,6 +109,7 @@ interface ProductFormState {
 const EMPTY_PRODUCT: ProductFormState = {
   productName: '',
   category: '',
+  productIconKey: 'other',
   unit: 'kg',
   initialQty: '',
   incomeDate: TODAY,
@@ -136,14 +148,19 @@ function ProductDialog({
   const { t } = useApp();
   const [form, setForm] = useState<ProductFormState>(EMPTY_PRODUCT);
   const [splits, setSplits] = useState<SplitFormRow[]>([]);
+  const [iconLocked, setIconLocked] = useState(false);
 
   React.useEffect(() => {
     if (open) {
       setSplits([]);
+      setIconLocked(false);
       if (editing) {
+        const hasSavedIcon = Boolean(editing.productIconKey?.trim());
+        setIconLocked(hasSavedIcon);
         setForm({
           productName: editing.productName,
           category: editing.category,
+          productIconKey: warehouseDisplayIconKey(editing),
           unit: editing.unit,
           initialQty: String(editing.initialQty),
           incomeDate: editing.incomeDate,
@@ -208,6 +225,7 @@ function ProductDialog({
           ...editing,
           productName: form.productName.trim(),
           category: category as CategoryKey,
+          productIconKey: form.productIconKey,
           unit: form.unit,
           initialQty: nextInitial,
           currentQty: nextCurrent,
@@ -259,6 +277,7 @@ function ProductDialog({
           ...editing,
           productName: form.productName.trim(),
           category: category as CategoryKey,
+          productIconKey: form.productIconKey,
           unit: form.unit,
           initialQty: nextInitial,
           currentQty: nextCurrent,
@@ -308,6 +327,7 @@ function ProductDialog({
         {
           productName: form.productName.trim(),
           category: category as CategoryKey,
+          productIconKey: form.productIconKey,
           unit: form.unit,
           initialQty: parentQty,
           incomeDate: form.incomeDate,
@@ -351,6 +371,15 @@ function ProductDialog({
                 list="warehouse-category-suggestions"
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                onBlur={() => {
+                  const cat = form.category.trim();
+                  if (!iconLocked && cat) {
+                    setForm((f) => ({
+                      ...f,
+                      productIconKey: resolveProductIconKey(cat as CategoryKey),
+                    }));
+                  }
+                }}
                 className="mt-1.5"
                 placeholder={t.whCategoryPlaceholder}
                 autoComplete="off"
@@ -377,6 +406,39 @@ function ProductDialog({
               </Select>
             </div>
           </div>
+
+          <div>
+            <Label>{t.whProductIcon}</Label>
+            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{t.whProductIconHint}</p>
+            <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-7">
+              {PRODUCT_ICON_OPTIONS.map((key) => {
+                const selected = form.productIconKey === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    title={productIconLabel(key, t)}
+                    onClick={() => {
+                      setIconLocked(true);
+                      setForm((f) => ({ ...f, productIconKey: key }));
+                    }}
+                    className={cn(
+                      'flex flex-col items-center gap-1 rounded-lg border p-2 transition-colors',
+                      selected
+                        ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-500/30 dark:border-violet-400 dark:bg-violet-950/40'
+                        : 'border-slate-200 hover:border-slate-300 dark:border-slate-600 dark:hover:border-slate-500',
+                    )}
+                  >
+                    <CategoryProductIcon iconKey={key} />
+                    <span className="max-w-full truncate text-center text-[10px] leading-tight text-slate-600 dark:text-slate-400">
+                      {productIconLabel(key, t)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Label>
@@ -831,7 +893,10 @@ export function Warehouse() {
                                 className={`font-medium text-slate-800 dark:text-white ${isChild ? 'pl-4' : ''}`}
                               >
                                 <div className="flex items-center gap-2">
-                                  <CategoryProductIcon category={w.category} />
+                                  <CategoryProductIcon
+                                    category={w.category}
+                                    iconKey={warehouseDisplayIconKey(w)}
+                                  />
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-1">
                                       {isChild && (
@@ -958,7 +1023,11 @@ export function Warehouse() {
                   <Card key={root.id} className="overflow-hidden border-slate-200/90 dark:border-slate-600">
                     <div className="border-b border-slate-100 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                       <div className="flex items-start gap-3">
-                        <CategoryProductIcon category={root.category} size="md" />
+                        <CategoryProductIcon
+                          category={root.category}
+                          iconKey={warehouseDisplayIconKey(root)}
+                          size="md"
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-800 dark:text-white">
                             <span className="mr-1 tabular-nums text-slate-500 dark:text-slate-400">
@@ -1027,7 +1096,10 @@ export function Warehouse() {
                           return (
                             <div key={w.id} className="bg-indigo-50/30 p-4 pl-4 dark:bg-indigo-950/15">
                               <div className="flex items-start gap-3">
-                                <CategoryProductIcon category={w.category} />
+                                <CategoryProductIcon
+                                  category={w.category}
+                                  iconKey={warehouseDisplayIconKey(w)}
+                                />
                                 <span className="mt-1.5 font-mono text-indigo-500 dark:text-indigo-400">└</span>
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-sm font-medium text-slate-800 dark:text-white">

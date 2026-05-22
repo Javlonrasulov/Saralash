@@ -239,6 +239,8 @@ export interface WarehouseItem {
   purchasePricePerUnit?: number | null;
   /** Tavsiya / reja sotish narxi (so'm), ixtiyoriy */
   salePricePerUnit?: number | null;
+  /** Ro‘yxat ikonkasi: paper | plastic | glass | metal | copper | cardboard | other */
+  productIconKey?: string | null;
   status: WarehouseStatus;
   createdAt: string;
 }
@@ -503,6 +505,7 @@ function warehouseChildFromParent(
     notes: undefined,
     purchasePricePerUnit: parent.purchasePricePerUnit ?? null,
     salePricePerUnit: parent.salePricePerUnit ?? null,
+    productIconKey: parent.productIconKey ?? null,
     status: 'IN_STOCK',
     createdAt: batchCreatedAt,
   };

@@ -124,6 +124,8 @@ export function NavbarDateRangePicker() {
       ? t.posDateRangeAll
       : `${formatYmdDisplay(filter.from)} — ${formatYmdDisplay(filter.to)}`;
 
+  const draftRangeLabel = `${formatYmdDisplay(draftFrom)} — ${formatYmdDisplay(draftTo)}`;
+
   const applyPreset = (f: NavDateFilter) => {
     if (f.mode === 'all') {
       setFilter(f);
@@ -252,10 +254,13 @@ export function NavbarDateRangePicker() {
           onClick={() => setOpen((v) => !v)}
           title={triggerLabel}
           aria-label={triggerLabel}
-          className="flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 sm:w-auto sm:max-w-[14rem] sm:px-2.5 sm:text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600"
+          className={cn(
+            'flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 px-2.5 text-xs font-semibold text-indigo-800 transition-colors hover:border-indigo-300 hover:bg-indigo-50 sm:max-w-[14rem] sm:bg-white sm:px-2.5 sm:text-sm sm:text-slate-600 dark:border-indigo-500/40 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:border-indigo-400 sm:dark:border-slate-700 sm:dark:bg-slate-800 sm:dark:text-slate-300',
+            filter.mode === 'range' ? 'min-w-[7.5rem] max-w-[9.5rem] sm:min-w-0' : 'min-w-[6.5rem] sm:min-w-0',
+          )}
         >
-          <CalendarIcon size={14} className="shrink-0 text-indigo-500" />
-          <span className="hidden max-w-[10rem] truncate sm:inline">{triggerLabel}</span>
+          <CalendarIcon size={16} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
+          <span className="truncate sm:max-w-[10rem]">{triggerLabel}</span>
         </button>
         {filter.mode === 'range' && (
           <button
@@ -279,10 +284,11 @@ export function NavbarDateRangePicker() {
           />
           <div
             className={cn(
-              'fixed left-3 right-3 top-[4.5rem] z-[85] max-h-[min(32rem,calc(100dvh-5.5rem))] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-300/40 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/50',
-              'sm:absolute sm:inset-x-auto sm:right-0 sm:left-auto sm:top-full sm:mt-2 sm:max-h-none sm:w-[22rem] sm:overflow-visible',
+              'fixed inset-x-0 bottom-0 z-[85] flex max-h-[min(92dvh,36rem)] flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-300/40 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/50',
+              'sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:left-auto sm:top-full sm:mt-2 sm:max-h-[min(32rem,calc(100dvh-6rem))] sm:w-[22rem] sm:rounded-2xl',
             )}
           >
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pb-2">
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
@@ -426,17 +432,20 @@ export function NavbarDateRangePicker() {
             <CalendarIcon size={12} className="shrink-0 opacity-70" />
             {pickHint === 'start' ? t.navDatePickStart : t.navDatePickEnd}
           </p>
+            </div>
 
-          <Button
-            type="button"
-            className="mt-3 h-10 w-full rounded-xl"
-            onClick={applyDraft}
-          >
-            <span className="sm:hidden">{t.navDateApply}</span>
-            <span className="hidden sm:inline">
-              {t.navDateApply} ({formatYmdDisplay(draftFrom)} — {formatYmdDisplay(draftTo)})
-            </span>
-          </Button>
+            <div className="shrink-0 border-t border-slate-100 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+              <p className="nums mb-2.5 text-center text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                {draftRangeLabel}
+              </p>
+              <Button
+                type="button"
+                className="h-11 w-full rounded-xl text-sm font-semibold"
+                onClick={applyDraft}
+              >
+                {t.navDateApply}
+              </Button>
+            </div>
         </div>
         </>
       )}

@@ -108,6 +108,8 @@ export interface T {
   whFilterAll: string;
   /** Ombor: kategoriya SVG ikonkalar namunasi */
   whCategoryIconSamples: string;
+  whProductIcon: string;
+  whProductIconHint: string;
   whTabStock: string;
   whTabSold: string;
   whSell: string;
@@ -455,6 +457,7 @@ export interface T {
   catGlass: string;
   catMetal: string;
   catCardboard: string;
+  catCopper: string;
   catOther: string;
 
   // Navigation: Statistics
@@ -612,6 +615,9 @@ const uz_latin: T = {
   whCategory: 'Kategoriya',
   whCategoryPlaceholder: 'Masalan: Plastik qoplar',
   whCategoryIconSamples: 'Namuna belgilar',
+  whProductIcon: 'Mahsulot belgisi',
+  whProductIconHint:
+    'Ro‘yxatda ko‘rinadigan ikonka. Kategoriya nomidan avtomatik tanlanishi mumkin — kerak bo‘lsa o‘zingiz tanlang.',
   whQuantity: 'Miqdor',
   whIncomeDate: 'Kirim sanasi',
   whOutcome: 'Chiqim',
@@ -962,6 +968,7 @@ const uz_latin: T = {
   catGlass: 'Shisha',
   catMetal: 'Metall',
   catCardboard: 'Karton',
+  catCopper: 'Mis',
   catOther: 'Boshqa',
 
   navStatistics: 'Statistika',
@@ -1120,6 +1127,9 @@ const uz_cyrillic: T = {
   whCategory: 'Категория',
   whCategoryPlaceholder: 'Масалан: Пластик қоплар',
   whCategoryIconSamples: 'Намуна белгилар',
+  whProductIcon: 'Маҳсулот белгиси',
+  whProductIconHint:
+    'Рўйхатда кўринадиган иконка. Категория номидан автомат танланиши мумкин — керак бўлса ўзингиз танланг.',
   whQuantity: 'Миқдор',
   whIncomeDate: 'Кирим санаси',
   whOutcome: 'Чиқим',
@@ -1470,6 +1480,7 @@ const uz_cyrillic: T = {
   catGlass: 'Шиша',
   catMetal: 'Металл',
   catCardboard: 'Картон',
+  catCopper: 'Мис',
   catOther: 'Бошқа',
 
   navStatistics: 'Статистика',
@@ -1628,6 +1639,9 @@ const ru: T = {
   whCategory: 'Категория',
   whCategoryPlaceholder: 'Например: Пластиковые мешки',
   whCategoryIconSamples: 'Примеры иконок',
+  whProductIcon: 'Иконка товара',
+  whProductIconHint:
+    'Иконка в списке. Может подставиться из названия категории — при необходимости выберите вручную.',
   whQuantity: 'Количество',
   whIncomeDate: 'Дата поступления',
   whOutcome: 'Расход',
@@ -1977,6 +1991,7 @@ const ru: T = {
   catGlass: 'Стекло',
   catMetal: 'Металл',
   catCardboard: 'Картон',
+  catCopper: 'Медь',
   catOther: 'Другое',
 
   navStatistics: 'Статистика',

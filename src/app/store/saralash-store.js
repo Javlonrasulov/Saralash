@@ -110,6 +110,7 @@ function warehouseChildFromParent(parent, productName, qty, batchCreatedAt) {
         notes: undefined,
         purchasePricePerUnit: parent.purchasePricePerUnit ?? null,
         salePricePerUnit: parent.salePricePerUnit ?? null,
+        productIconKey: parent.productIconKey ?? null,
         status: 'IN_STOCK',
         createdAt: batchCreatedAt,
     };
