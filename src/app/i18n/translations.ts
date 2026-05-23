@@ -705,8 +705,8 @@ const uz_latin: T = {
   suppTitle: 'Ko‘cha obyektlari',
   suppIntro:
     'Bu yerda ko‘cha obyektlarini ro‘yxatga olasiz. «Xarid»da ombordagi mahsulot qatorini tanlab, kirim miqdorini shu qator qoldig‘iga qo‘shasiz.',
-  suppDailyPurchaseSummary: 'Kunlik olingan mahsulotlar (tanlangan davr)',
-  suppDailyPurchaseEmpty: 'Bu davrda xarid qayd etilmagan',
+  suppDailyPurchaseSummary: 'Bugungi olingan mahsulotlar',
+  suppDailyPurchaseEmpty: 'Bugun xarid qayd etilmagan',
   suppDailyPurchaseMoreHint: 'Faqat oxirgi 14 kun ko‘rsatiladi — barchasini «Xaridlar tarixi»da ko‘ring.',
   suppName: 'Ko‘cha obyekti',
   suppPhone: 'Telefon',
@@ -1219,8 +1219,8 @@ const uz_cyrillic: T = {
   suppTitle: 'Кўча объектлари',
   suppIntro:
     'Бу ерда кўча объектларини рўйхатга оласиз. «Харид»да омбордаги маҳсулот қаторини танлаб, кирим миқдорини шу қатор қолдиғига қўшасиз.',
-  suppDailyPurchaseSummary: 'Кунлик олинган маҳсулотлар (танланган давр)',
-  suppDailyPurchaseEmpty: 'Бу даврда харид қайд этилмаган',
+  suppDailyPurchaseSummary: 'Бугунги олинган маҳсулотлар',
+  suppDailyPurchaseEmpty: 'Бугун харид қайд этилмаган',
   suppDailyPurchaseMoreHint: 'Фақат охирги 14 кун — барчаси «Харидлар тарихи»да.',
   suppName: 'Кўча объекти',
   suppPhone: 'Телефон',
@@ -1734,8 +1734,8 @@ const ru: T = {
   suppTitle: 'Уличные объекты',
   suppIntro:
     'Здесь ведёте список уличных объектов. В «Закупке» выберите позицию на складе — количество прихода добавится к её остатку.',
-  suppDailyPurchaseSummary: 'Закуплено по дням (выбранный период)',
-  suppDailyPurchaseEmpty: 'За этот период закупок нет',
+  suppDailyPurchaseSummary: 'Закуплено сегодня',
+  suppDailyPurchaseEmpty: 'Сегодня закупок нет',
   suppDailyPurchaseMoreHint: 'Показаны последние 14 дней — полный список в «Истории закупок».',
   suppName: 'Уличный объект',
   suppPhone: 'Телефон',

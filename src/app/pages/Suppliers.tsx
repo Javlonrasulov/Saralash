@@ -10,6 +10,7 @@ import {
   History,
   Wallet,
   Trash2,
+  Package,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -23,8 +24,6 @@ import {
   groupSupplierPurchasesForHistory,
 } from '../store/saralash-store';
 import { useApp } from '../i18n/app-context';
-import { useNavDateFilter } from '../context/nav-date-range-context';
-import { isYmdInNavFilter } from '../lib/nav-date-range';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -122,8 +121,6 @@ export function Suppliers() {
     recordSupplierDebtRepayment,
   } = useStore();
   const { t } = useApp();
-  const { filter: navDateFilter } = useNavDateFilter();
-
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
@@ -394,46 +391,31 @@ export function Suppliers() {
     [filteredHistoryRows],
   );
 
-  const dailyPurchaseOverview = useMemo(() => {
-    const inRange = state.supplierPurchases.filter((p) =>
-      isYmdInNavFilter(p.incomeDate, navDateFilter),
-    );
-    const byDate = new Map<string, Map<string, { qty: number; unit: 'kg' | 'pcs' }>>();
-    for (const p of inRange) {
+  const todayPurchaseItems = useMemo(() => {
+    const byProduct = new Map<string, { qty: number; unit: 'kg' | 'pcs' }>();
+    for (const p of state.supplierPurchases) {
+      if (p.incomeDate !== TODAY) continue;
       const name = p.productName.split(' (')[0]?.trim() || p.productName;
-      const dayMap = byDate.get(p.incomeDate) ?? new Map();
-      const prev = dayMap.get(name);
-      dayMap.set(name, {
+      const prev = byProduct.get(name);
+      byProduct.set(name, {
         unit: p.unit,
         qty: (prev?.qty ?? 0) + p.quantity,
       });
-      byDate.set(p.incomeDate, dayMap);
     }
-    const maxDays = navDateFilter.mode === 'all' ? 14 : 62;
-    const days = [...byDate.entries()]
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .slice(0, maxDays)
-      .map(([date, products]) => ({
-        date,
-        items: [...products.entries()]
-          .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
-          .map(([name, { qty, unit }]) => ({ name, qty, unit })),
-      }));
-    return days;
-  }, [state.supplierPurchases, navDateFilter]);
+    return [...byProduct.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
+      .map(([name, { qty, unit }]) => ({ name, qty, unit }));
+  }, [state.supplierPurchases]);
 
-  const showDailyDateLabels =
-    navDateFilter.mode === 'all' ||
-    (navDateFilter.mode === 'range' && navDateFilter.from !== navDateFilter.to) ||
-    dailyPurchaseOverview.length > 1;
-
-  const formatDayProducts = (items: Array<{ name: string; qty: number; unit: 'kg' | 'pcs' }>) =>
-    items
-      .map((i) => {
-        const u = i.unit === 'kg' ? 'kg' : t.unitPcs;
-        return `${i.name} ${formatQuantity(i.qty, i.unit)} ${u}`;
-      })
-      .join(' · ');
+  const todayPurchaseStats = useMemo(() => {
+    let totalKg = 0;
+    let totalPcs = 0;
+    for (const i of todayPurchaseItems) {
+      if (i.unit === 'kg') totalKg += i.qty;
+      else totalPcs += i.qty;
+    }
+    return { totalKg, totalPcs, count: todayPurchaseItems.length };
+  }, [todayPurchaseItems]);
 
   const summarizeBatchProducts = (lines: SupplierPurchaseRecord[]) => {
     const map = new Map<string, { qty: number; unit: 'kg' | 'pcs' }>();
@@ -693,34 +675,82 @@ export function Suppliers() {
             <p className="text-sm text-indigo-900 dark:text-indigo-200">{t.suppIntro}</p>
           </Card>
 
-          <Card className="border-slate-200 p-4 dark:border-slate-700">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t.suppDailyPurchaseSummary}
-            </p>
-            {dailyPurchaseOverview.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-400">{t.suppDailyPurchaseEmpty}</p>
-            ) : (
-              <div className="mt-2 space-y-2.5">
-                {dailyPurchaseOverview.map((day) => (
-                  <div
-                    key={day.date}
-                    className="rounded-lg bg-slate-50/90 px-3 py-2 dark:bg-slate-900/50"
-                  >
-                    {showDailyDateLabels && (
-                      <p className="mb-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
-                        {formatDate(day.date)}
-                      </p>
-                    )}
-                    <p className="text-sm leading-snug text-slate-800 dark:text-slate-100">
-                      {formatDayProducts(day.items)}
-                    </p>
-                  </div>
-                ))}
-                {navDateFilter.mode === 'all' && dailyPurchaseOverview.length >= 14 && (
-                  <p className="text-[10px] text-slate-400">{t.suppDailyPurchaseMoreHint}</p>
-                )}
+          <Card className="overflow-hidden border-emerald-200/70 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/40 p-0 shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/40 dark:via-slate-900 dark:to-teal-950/20">
+            <div className="flex items-start justify-between gap-3 border-b border-emerald-100/80 px-4 py-3.5 dark:border-emerald-900/50">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/25">
+                  <Package size={18} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
+                    {t.suppDailyPurchaseSummary}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    {formatDate(TODAY)}
+                  </p>
+                </div>
               </div>
-            )}
+              {todayPurchaseItems.length > 0 && (
+                <div className="shrink-0 rounded-xl border border-emerald-100/90 bg-white/80 px-3 py-2 text-right shadow-sm dark:border-emerald-900/50 dark:bg-slate-800/80">
+                  {todayPurchaseStats.totalKg > 0 && (
+                    <p className="nums text-lg font-bold leading-none text-emerald-800 dark:text-emerald-300">
+                      {formatQuantity(todayPurchaseStats.totalKg, 'kg')}
+                      <span className="ml-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        kg
+                      </span>
+                    </p>
+                  )}
+                  {todayPurchaseStats.totalPcs > 0 && (
+                    <p
+                      className={`nums font-bold leading-none text-emerald-800 dark:text-emerald-300 ${
+                        todayPurchaseStats.totalKg > 0
+                          ? 'mt-1 text-sm'
+                          : 'text-lg'
+                      }`}
+                    >
+                      {formatQuantity(todayPurchaseStats.totalPcs, 'pcs')}
+                      <span className="ml-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        {t.unitPcs}
+                      </span>
+                    </p>
+                  )}
+                  <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                    {formatNumber(todayPurchaseStats.count)} {t.suppHistoryProductCount}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="p-4">
+              {todayPurchaseItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100/90 dark:bg-emerald-900/30">
+                    <Package size={22} className="text-emerald-500/70 dark:text-emerald-400/70" />
+                  </div>
+                  <p className="max-w-xs text-sm text-slate-500 dark:text-slate-400">
+                    {t.suppDailyPurchaseEmpty}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {todayPurchaseItems.map((item) => (
+                    <div
+                      key={item.name}
+                      className="flex min-w-[6.75rem] max-w-full flex-col gap-0.5 rounded-xl border border-emerald-100/90 bg-white/90 px-3 py-2.5 shadow-sm transition hover:border-emerald-200 hover:shadow-md dark:border-emerald-900/40 dark:bg-slate-800/90 dark:hover:border-emerald-800/60"
+                    >
+                      <span className="line-clamp-2 text-xs font-medium leading-snug text-slate-600 dark:text-slate-300">
+                        {item.name}
+                      </span>
+                      <span className="nums text-base font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                        {formatQuantity(item.qty, item.unit)}
+                        <span className="ml-1 text-xs font-semibold text-emerald-600/90 dark:text-emerald-500/90">
+                          {item.unit === 'kg' ? 'kg' : t.unitPcs}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </Card>
 
           <Card className="p-4">

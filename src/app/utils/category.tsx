@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Box,
   Coins,
@@ -102,6 +103,73 @@ export const PRODUCT_ICON_OPTIONS: ProductIconKey[] = [
   'other',
 ];
 
+/** Saqlanadigan rasm identifikatori (`productIconKey` maydoni). */
+export type ProductIconPhotoId = string;
+
+export interface ProductIconPickerOption {
+  id: ProductIconPhotoId;
+  group: ProductIconKey;
+}
+
+const ICON_PHOTO = (name: string) => `/product-icons/${name}.jpg`;
+
+/** Tanlov panelidagi barcha rasmlar (har guruhdan 3 ta variant). */
+export const PRODUCT_ICON_PICKER_OPTIONS: ProductIconPickerOption[] = [
+  { id: 'paper', group: 'paper' },
+  { id: 'paper-2', group: 'paper' },
+  { id: 'paper-3', group: 'paper' },
+  { id: 'plastic', group: 'plastic' },
+  { id: 'plastic-2', group: 'plastic' },
+  { id: 'plastic-3', group: 'plastic' },
+  { id: 'glass', group: 'glass' },
+  { id: 'glass-2', group: 'glass' },
+  { id: 'glass-3', group: 'glass' },
+  { id: 'metal', group: 'metal' },
+  { id: 'metal-2', group: 'metal' },
+  { id: 'metal-3', group: 'metal' },
+  { id: 'copper', group: 'copper' },
+  { id: 'copper-2', group: 'copper' },
+  { id: 'copper-3', group: 'copper' },
+  { id: 'cardboard', group: 'cardboard' },
+  { id: 'cardboard-2', group: 'cardboard' },
+  { id: 'cardboard-3', group: 'cardboard' },
+  { id: 'other', group: 'other' },
+  { id: 'other-2', group: 'other' },
+  { id: 'other-3', group: 'other' },
+];
+
+const PRODUCT_ICON_PHOTO_SRC: Record<string, string> = Object.fromEntries(
+  PRODUCT_ICON_PICKER_OPTIONS.map((o) => [o.id, ICON_PHOTO(o.id)]),
+);
+
+const PICKER_BY_ID = new Map(PRODUCT_ICON_PICKER_OPTIONS.map((o) => [o.id, o]));
+
+/** Guruh bo‘yicha tanlov (UI uchun). */
+export const PRODUCT_ICON_PICKER_GROUPS: ProductIconKey[] = [
+  'paper',
+  'plastic',
+  'glass',
+  'metal',
+  'copper',
+  'cardboard',
+  'other',
+];
+
+export function isProductIconPhotoId(v: string): boolean {
+  return v in PRODUCT_ICON_PHOTO_SRC;
+}
+
+export function resolveIconGroup(iconId: string): ProductIconKey {
+  const opt = PICKER_BY_ID.get(iconId);
+  if (opt) return opt.group;
+  if (isProductIconKey(iconId)) return iconId;
+  return 'other';
+}
+
+export function productIconPhotoSrc(iconId: string): string {
+  return PRODUCT_ICON_PHOTO_SRC[iconId] ?? PRODUCT_ICON_PHOTO_SRC.other;
+}
+
 type ResolvedCategoryId = ProductIconKey;
 
 export function isProductIconKey(v: string): v is ProductIconKey {
@@ -112,14 +180,22 @@ export function resolveProductIconKey(category: CategoryKey): ProductIconKey {
   return resolveCategoryId(String(category));
 }
 
-/** Ro‘yxatda ko‘rsatish: tanlangan ikonka yoki kategoriyadan taxmin. */
+/** Ro‘yxatda ko‘rsatish: saqlangan rasm id yoki kategoriyadan asosiy rasm. */
+export function warehouseDisplayIconId(item: {
+  category: CategoryKey;
+  productIconKey?: string | null;
+}): ProductIconPhotoId {
+  const raw = item.productIconKey?.trim();
+  if (raw && isProductIconPhotoId(raw)) return raw;
+  return resolveProductIconKey(item.category);
+}
+
+/** @deprecated `warehouseDisplayIconId` ishlating */
 export function warehouseDisplayIconKey(item: {
   category: CategoryKey;
   productIconKey?: string | null;
 }): ProductIconKey {
-  const raw = item.productIconKey?.trim();
-  if (raw && isProductIconKey(raw)) return raw;
-  return resolveProductIconKey(item.category);
+  return resolveIconGroup(warehouseDisplayIconId(item));
 }
 
 export function productIconMeta(key: ProductIconKey): CategoryMeta {
@@ -156,6 +232,7 @@ export function categoryMeta(key: CategoryKey): CategoryMeta {
 }
 
 const BOX_SIZE = { sm: 'h-7 w-7', md: 'h-10 w-10' } as const;
+const PHOTO_SIZE = { sm: 'h-9 w-9', md: 'h-12 w-12', lg: 'h-16 w-16' } as const;
 const ICON_PX = { sm: 15, md: 20 } as const;
 
 /** Kichik inline ikon (badge, filtr). */
@@ -172,22 +249,15 @@ export function CategoryIconGlyph({
   return <Icon className={cn(iconColor, className)} size={size} strokeWidth={2} aria-hidden />;
 }
 
-/** Mahsulot qatori yonidagi kategoriya ikonkasi (SVG, emoji emas). */
-export function CategoryProductIcon({
-  category,
-  iconKey,
-  size = 'sm',
+function CategoryProductIconSvg({
+  meta,
+  size,
   className,
 }: {
-  category?: CategoryKey;
-  /** Formadan tanlangan ikonka; bo‘lmasa `category` bo‘yicha taxmin. */
-  iconKey?: ProductIconKey | null;
-  size?: 'sm' | 'md';
+  meta: CategoryMeta;
+  size: 'sm' | 'md';
   className?: string;
 }) {
-  const meta = productIconMeta(
-    iconKey ?? (category != null ? resolveProductIconKey(category) : 'other'),
-  );
   const Icon = meta.Icon;
   const px = ICON_PX[size];
   return (
@@ -201,6 +271,57 @@ export function CategoryProductIcon({
       aria-hidden
     >
       <Icon className={meta.iconColor} size={px} strokeWidth={2} />
+    </span>
+  );
+}
+
+/** Mahsulot qatori yonidagi belgi — asosan fotosurat, SVG zaxira. */
+export function CategoryProductIcon({
+  category,
+  iconKey,
+  size = 'sm',
+  variant = 'photo',
+  className,
+}: {
+  category?: CategoryKey;
+  /** Saqlangan rasm id yoki guruh kaliti; bo‘lmasa `category` bo‘yicha taxmin. */
+  iconKey?: ProductIconPhotoId | ProductIconKey | null;
+  size?: 'sm' | 'md' | 'lg';
+  /** `photo` — haqiqiy rasm; `svg` — Lucide belgi. */
+  variant?: 'photo' | 'svg';
+  className?: string;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const iconId =
+    iconKey != null && String(iconKey).trim() !== ''
+      ? String(iconKey)
+      : category != null
+        ? resolveProductIconKey(category)
+        : 'other';
+  const meta = productIconMeta(resolveIconGroup(iconId));
+  const svgSize = size === 'lg' ? 'md' : size;
+
+  if (variant === 'svg' || imgFailed) {
+    return <CategoryProductIconSvg meta={meta} size={svgSize} className={className} />;
+  }
+
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 overflow-hidden rounded-lg border border-slate-200/80 bg-slate-100 shadow-sm dark:border-slate-600 dark:bg-slate-800',
+        PHOTO_SIZE[size],
+        className,
+      )}
+      aria-hidden
+    >
+      <img
+        src={productIconPhotoSrc(iconId)}
+        alt=""
+        className="h-full w-full object-cover"
+        loading="lazy"
+        decoding="async"
+        onError={() => setImgFailed(true)}
+      />
     </span>
   );
 }
@@ -222,6 +343,14 @@ export function categoryLabel(key: CategoryKey, t: T): string {
     default:
       return key;
   }
+}
+
+/** Tanlov tugmasi ostidagi qisqa yozuv. */
+export function productIconPickerLabel(iconId: string, t: T): string {
+  const group = resolveIconGroup(iconId);
+  const base = productIconLabel(group, t);
+  const variant = iconId.match(/-(\d+)$/)?.[1];
+  return variant ? `${base} · ${variant}` : base;
 }
 
 /** Mahsulot ikonkasi tanlovi (qog‘oz, plastik, mis …). */
