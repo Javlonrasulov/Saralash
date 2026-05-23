@@ -23,6 +23,8 @@ import {
   groupSupplierPurchasesForHistory,
 } from '../store/saralash-store';
 import { useApp } from '../i18n/app-context';
+import { useNavDateFilter } from '../context/nav-date-range-context';
+import { isYmdInNavFilter } from '../lib/nav-date-range';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -120,6 +122,7 @@ export function Suppliers() {
     recordSupplierDebtRepayment,
   } = useStore();
   const { t } = useApp();
+  const { filter: navDateFilter } = useNavDateFilter();
 
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -391,6 +394,47 @@ export function Suppliers() {
     [filteredHistoryRows],
   );
 
+  const dailyPurchaseOverview = useMemo(() => {
+    const inRange = state.supplierPurchases.filter((p) =>
+      isYmdInNavFilter(p.incomeDate, navDateFilter),
+    );
+    const byDate = new Map<string, Map<string, { qty: number; unit: 'kg' | 'pcs' }>>();
+    for (const p of inRange) {
+      const name = p.productName.split(' (')[0]?.trim() || p.productName;
+      const dayMap = byDate.get(p.incomeDate) ?? new Map();
+      const prev = dayMap.get(name);
+      dayMap.set(name, {
+        unit: p.unit,
+        qty: (prev?.qty ?? 0) + p.quantity,
+      });
+      byDate.set(p.incomeDate, dayMap);
+    }
+    const maxDays = navDateFilter.mode === 'all' ? 14 : 62;
+    const days = [...byDate.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .slice(0, maxDays)
+      .map(([date, products]) => ({
+        date,
+        items: [...products.entries()]
+          .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
+          .map(([name, { qty, unit }]) => ({ name, qty, unit })),
+      }));
+    return days;
+  }, [state.supplierPurchases, navDateFilter]);
+
+  const showDailyDateLabels =
+    navDateFilter.mode === 'all' ||
+    (navDateFilter.mode === 'range' && navDateFilter.from !== navDateFilter.to) ||
+    dailyPurchaseOverview.length > 1;
+
+  const formatDayProducts = (items: Array<{ name: string; qty: number; unit: 'kg' | 'pcs' }>) =>
+    items
+      .map((i) => {
+        const u = i.unit === 'kg' ? 'kg' : t.unitPcs;
+        return `${i.name} ${formatQuantity(i.qty, i.unit)} ${u}`;
+      })
+      .join(' · ');
+
   const summarizeBatchProducts = (lines: SupplierPurchaseRecord[]) => {
     const map = new Map<string, { qty: number; unit: 'kg' | 'pcs' }>();
     for (const l of lines) {
@@ -647,6 +691,36 @@ export function Suppliers() {
         <TabsContent value="list" className="mt-0 space-y-4">
           <Card className="border-indigo-100 bg-indigo-50/60 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/30">
             <p className="text-sm text-indigo-900 dark:text-indigo-200">{t.suppIntro}</p>
+          </Card>
+
+          <Card className="border-slate-200 p-4 dark:border-slate-700">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t.suppDailyPurchaseSummary}
+            </p>
+            {dailyPurchaseOverview.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-400">{t.suppDailyPurchaseEmpty}</p>
+            ) : (
+              <div className="mt-2 space-y-2.5">
+                {dailyPurchaseOverview.map((day) => (
+                  <div
+                    key={day.date}
+                    className="rounded-lg bg-slate-50/90 px-3 py-2 dark:bg-slate-900/50"
+                  >
+                    {showDailyDateLabels && (
+                      <p className="mb-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                        {formatDate(day.date)}
+                      </p>
+                    )}
+                    <p className="text-sm leading-snug text-slate-800 dark:text-slate-100">
+                      {formatDayProducts(day.items)}
+                    </p>
+                  </div>
+                ))}
+                {navDateFilter.mode === 'all' && dailyPurchaseOverview.length >= 14 && (
+                  <p className="text-[10px] text-slate-400">{t.suppDailyPurchaseMoreHint}</p>
+                )}
+              </div>
+            )}
           </Card>
 
           <Card className="p-4">
