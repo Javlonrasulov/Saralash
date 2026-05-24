@@ -101,7 +101,6 @@ interface ProductFormState {
   category: string;
   productIconKey: ProductIconPhotoId;
   unit: 'kg' | 'pcs';
-  initialQty: string;
   incomeDate: string;
   purchasePrice: string;
   streetPurchasePrice: string;
@@ -114,7 +113,6 @@ const EMPTY_PRODUCT: ProductFormState = {
   category: '',
   productIconKey: 'other',
   unit: 'kg',
-  initialQty: '',
   incomeDate: TODAY,
   purchasePrice: '',
   streetPurchasePrice: '',
@@ -166,7 +164,6 @@ function ProductDialog({
           category: editing.category,
           productIconKey: warehouseDisplayIconId(editing),
           unit: editing.unit,
-          initialQty: String(editing.initialQty),
           incomeDate: editing.incomeDate,
           purchasePrice:
             editing.purchasePricePerUnit != null && Number.isFinite(editing.purchasePricePerUnit)
@@ -189,14 +186,6 @@ function ProductDialog({
     }
   }, [open, editing]);
 
-  const parseParentQty = (): number => {
-    const raw = form.initialQty.trim();
-    if (raw === '') return 0;
-    const n = parseFloat(raw.replace(',', '.'));
-    if (!Number.isFinite(n)) return Number.NaN;
-    return form.unit === 'pcs' ? Math.max(0, Math.floor(n)) : Math.max(0, n);
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const category = form.category.trim();
@@ -218,27 +207,12 @@ function ProductDialog({
 
     if (editing) {
       if (editing.parentWarehouseId) {
-        let nextInitial = editing.initialQty;
-        let nextCurrent = editing.currentQty;
-        const qtyRaw = form.initialQty.trim();
-        if (qtyRaw !== '') {
-          const n = parseFloat(qtyRaw.replace(',', '.'));
-          if (!Number.isFinite(n) || n < 0) {
-            toast.error(t.whValidateQtyPositive);
-            return;
-          }
-          const parentQty = form.unit === 'pcs' ? Math.max(0, Math.floor(n)) : Math.max(0, n);
-          nextInitial = parentQty;
-          nextCurrent = editing.currentQty + (parentQty - editing.initialQty);
-        }
         updateWarehouseItem({
           ...editing,
           productName: form.productName.trim(),
           category: category as CategoryKey,
           productIconKey: form.productIconKey,
           unit: form.unit,
-          initialQty: nextInitial,
-          currentQty: nextCurrent,
           incomeDate: form.incomeDate,
           notes: form.notes.trim() || undefined,
           purchasePricePerUnit: parsedPurchase.value,
@@ -247,20 +221,6 @@ function ProductDialog({
         });
         toast.success(t.save);
       } else {
-        let nextInitial = editing.initialQty;
-        let nextCurrent = editing.currentQty;
-        const qtyRaw = form.initialQty.trim();
-        if (qtyRaw !== '') {
-          const n = parseFloat(qtyRaw.replace(',', '.'));
-          if (!Number.isFinite(n) || n < 0) {
-            toast.error(t.whValidateQtyPositive);
-            return;
-          }
-          const parentQty = form.unit === 'pcs' ? Math.max(0, Math.floor(n)) : Math.max(0, n);
-          nextInitial = parentQty;
-          nextCurrent = editing.currentQty + (parentQty - editing.initialQty);
-        }
-
         const parsedSplits: { productName: string; quantity: number }[] = [];
         for (const row of splits) {
           const nm = row.name.trim();
@@ -279,7 +239,7 @@ function ProductDialog({
         }
 
         const sumSplits = parsedSplits.reduce((s, x) => s + x.quantity, 0);
-        if (nextCurrent > 0 && sumSplits > nextCurrent + 1e-9) {
+        if (editing.currentQty > 0 && sumSplits > editing.currentQty + 1e-9) {
           toast.error(t.whSplitsExceedParent);
           return;
         }
@@ -290,8 +250,6 @@ function ProductDialog({
           category: category as CategoryKey,
           productIconKey: form.productIconKey,
           unit: form.unit,
-          initialQty: nextInitial,
-          currentQty: nextCurrent,
           incomeDate: form.incomeDate,
           notes: form.notes.trim() || undefined,
           purchasePricePerUnit: parsedPurchase.value,
@@ -307,11 +265,6 @@ function ProductDialog({
         toast.success(t.save);
       }
     } else {
-      const parentQty = parseParentQty();
-      if (!Number.isFinite(parentQty) || parentQty < 0) {
-        toast.error(t.whValidateQtyPositive);
-        return;
-      }
       const parsedSplits: { productName: string; quantity: number }[] = [];
       for (const row of splits) {
         const nm = row.name.trim();
@@ -329,19 +282,13 @@ function ProductDialog({
         if (nm) parsedSplits.push({ productName: nm, quantity: Math.max(0, q) });
       }
 
-      const sumSplits = parsedSplits.reduce((s, x) => s + x.quantity, 0);
-      if (parentQty > 0 && sumSplits > parentQty + 1e-9) {
-        toast.error(t.whSplitsExceedParent);
-        return;
-      }
-
       addWarehouseItemWithSplits(
         {
           productName: form.productName.trim(),
           category: category as CategoryKey,
           productIconKey: form.productIconKey,
           unit: form.unit,
-          initialQty: parentQty,
+          initialQty: 0,
           incomeDate: form.incomeDate,
           notes: form.notes.trim() || undefined,
           source: 'EXTERNAL',
@@ -461,32 +408,14 @@ function ProductDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <Label>
-                {t.whQuantity}
-                {editing ? '' : ' *'}
-              </Label>
-              <Input
-                value={form.initialQty}
-                onChange={(e) => setForm((f) => ({ ...f, initialQty: e.target.value }))}
-                placeholder="0"
-                inputMode="decimal"
-                className="mt-1.5"
-              />
-              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                {editing ? t.whQtyOptionalWhenEdit : t.whValidateQtyPositive}
-              </p>
-            </div>
-            <div>
-              <Label>{t.whIncomeDate}</Label>
-              <Input
-                type="date"
-                value={form.incomeDate}
-                onChange={(e) => setForm((f) => ({ ...f, incomeDate: e.target.value }))}
-                className="mt-1.5"
-              />
-            </div>
+          <div>
+            <Label>{t.whIncomeDate}</Label>
+            <Input
+              type="date"
+              value={form.incomeDate}
+              onChange={(e) => setForm((f) => ({ ...f, incomeDate: e.target.value }))}
+              className="mt-1.5 sm:max-w-xs"
+            />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

@@ -37,7 +37,51 @@ export function appendQtyPart(line, unit) {
         quantity: '',
     };
 }
-/** Submit oldin kutilayotgan kiritishni ham qo‘shish. */
+/** Mahsulot tanlanganda: avvalgisini saqlaydi, yangisi bo‘sh (yoki oldin saqlangan qatorni ochadi). */
+export function switchWarehouseOnLine(lines, editingKey, newWarehouseId, priceForNew, unitForWarehouse, createLine) {
+    let next = [...lines];
+    const idx = next.findIndex((l) => l.key === editingKey);
+    if (idx < 0)
+        return { lines: next, editingKey };
+    const cur = next[idx];
+    const prevId = cur.warehouseItemId;
+    if (prevId === newWarehouseId)
+        return { lines: next, editingKey };
+    if (prevId) {
+        const fin = finalizeQtyParts(cur, unitForWarehouse(prevId));
+        next[idx] = {
+            ...cur,
+            warehouseItemId: prevId,
+            qtyParts: fin.ok ? fin.qtyParts : cur.qtyParts ?? [],
+            quantity: fin.ok ? fin.quantity : '',
+        };
+    }
+    const existing = next.find((l) => l.warehouseItemId === newWarehouseId);
+    if (existing) {
+        return { lines: next, editingKey: existing.key };
+    }
+    const slot = next[idx];
+    const slotEmpty = lineQtyTotal(slot, false) <= 0 &&
+        !parseQtyEntry(slot.quantity) &&
+        (slot.qtyParts?.length ?? 0) === 0;
+    if (slotEmpty || !slot.warehouseItemId) {
+        next[idx] = {
+            ...slot,
+            warehouseItemId: newWarehouseId,
+            quantity: '',
+            qtyParts: [],
+            pricePerUnit: priceForNew,
+        };
+        return { lines: next, editingKey };
+    }
+    const added = createLine();
+    added.warehouseItemId = newWarehouseId;
+    added.pricePerUnit = priceForNew;
+    added.quantity = '';
+    added.qtyParts = [];
+    next = [...next, added];
+    return { lines: next, editingKey: added.key };
+}
 export function finalizeQtyParts(line, unit) {
     const pending = parseQtyEntry(line.quantity);
     if (pending == null) {

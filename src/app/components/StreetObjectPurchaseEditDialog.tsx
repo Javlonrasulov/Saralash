@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import {
   useStore,
   type StreetPurchaseHistoryGroup,
@@ -32,6 +32,7 @@ import {
   appendQtyPart,
   finalizeQtyParts,
   lineQtyTotal,
+  switchWarehouseOnLine,
 } from '../utils/purchase-qty-parts';
 import {
   AlertDialog,
@@ -169,30 +170,20 @@ export function StreetObjectPurchaseEditDialog({
     return `${warehouseProductTitle(w)} (${formatQuantity(q, w.unit)} ${u})`;
   };
 
-  const commitDraftLineAndAddNext = () => {
-    const editing = draftLines.find((l) => l.key === editingKey);
-    if (!editing?.warehouseItemId) {
-      toast.error(t.required);
-      return;
-    }
-    const w = state.warehouseItems.find((x) => x.id === editing.warehouseItemId);
-    const finalized = finalizeQtyParts(editing, w?.unit ?? 'kg');
-    if (!finalized.ok) {
-      if (finalized.reason === 'pcs_whole') toast.error(t.streetPurchasePcsWhole);
-      else toast.error(t.required);
-      return;
-    }
-    const item = state.warehouseItems.find((x) => x.id === editing.warehouseItemId);
-    const next = newDraftLine(editing.warehouseItemId, item ? prefPrice(item) : '');
-    setDraftLines((d) => [
-      ...d.map((l) =>
-        l.key === editing.key
-          ? { ...l, qtyParts: finalized.qtyParts, quantity: finalized.quantity }
-          : l,
-      ),
-      next,
-    ]);
-    setEditingKey(next.key);
+  const selectDraftWarehouse = (lineKey: string, newWarehouseId: string) => {
+    const item = state.warehouseItems.find((x) => x.id === newWarehouseId);
+    const unitFor = (id: string) =>
+      state.warehouseItems.find((x) => x.id === id)?.unit ?? 'kg';
+    const { lines, editingKey: nextKey } = switchWarehouseOnLine(
+      draftLines,
+      lineKey,
+      newWarehouseId,
+      prefPrice(item),
+      unitFor,
+      () => newDraftLine(),
+    );
+    setDraftLines(lines);
+    setEditingKey(nextKey);
   };
 
   const appendDraftQtyPart = (key: string) => {
@@ -366,7 +357,12 @@ export function StreetObjectPurchaseEditDialog({
             {(() => {
               const editingLine =
                 draftLines.find((l) => l.key === editingKey) ?? draftLines[draftLines.length - 1];
-              const collapsedLines = draftLines.filter((l) => l.key !== editingLine?.key);
+              const collapsedLines = draftLines.filter(
+                (l) =>
+                  l.key !== editingLine?.key &&
+                  l.warehouseItemId &&
+                  lineQtyTotal(l, false) > 0,
+              );
               const { w: editW, lineTotal: editTotal } = editingLine
                 ? parseDraftLine(editingLine)
                 : { w: undefined, lineTotal: null };
@@ -427,13 +423,7 @@ export function StreetObjectPurchaseEditDialog({
                     <div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50/40 p-3 dark:border-sky-900/50 dark:bg-sky-950/20">
                       <Select
                         value={editingLine.warehouseItemId || undefined}
-                        onValueChange={(v) => {
-                          const item = state.warehouseItems.find((x) => x.id === v);
-                          updateDraftLine(editingLine.key, {
-                            warehouseItemId: v,
-                            pricePerUnit: prefPrice(item),
-                          });
-                        }}
+                        onValueChange={(v) => selectDraftWarehouse(editingLine.key, v)}
                       >
                         <SelectTrigger className="rounded-xl">
                           <SelectValue />
@@ -446,7 +436,7 @@ export function StreetObjectPurchaseEditDialog({
                           ))}
                         </SelectContent>
                       </Select>
-                      <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-2">
                         <CumulativeQuantityField
                           label={<>{t.whQuantity} *</>}
                           quantity={editingLine.quantity}
@@ -482,16 +472,6 @@ export function StreetObjectPurchaseEditDialog({
                       </p>
                     </div>
                   )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full rounded-xl"
-                    onClick={commitDraftLineAndAddNext}
-                  >
-                    <Plus size={14} className="mr-1.5" />
-                    {t.streetAddPurchaseLine}
-                  </Button>
                 </>
               );
             })()}

@@ -75,6 +75,7 @@ import {
   appendQtyPart,
   finalizeQtyParts,
   lineQtyTotal,
+  switchWarehouseOnLine,
 } from '../utils/purchase-qty-parts';
 
 interface SupplierFormState {
@@ -341,38 +342,20 @@ export function Suppliers() {
     setPurchaseForm((f) => (f.paidAmount === next ? f : { ...f, paidAmount: next }));
   }, [purchaseOpen, purchaseForm.onCredit, purchaseOrderTotal]);
 
-  const commitPurchaseLineAndAddNext = () => {
-    const editing = purchaseForm.lines.find((l) => l.key === purchaseEditingKey);
-    if (!editing) return;
-    if (!editing.warehouseItemId) {
-      toast.error(t.required + ': ' + t.suppPurchasePickParent);
-      return;
-    }
-    const w = state.warehouseItems.find((x) => x.id === editing.warehouseItemId);
-    const finalized = finalizeQtyParts(editing, w?.unit ?? 'kg');
-    if (!finalized.ok) {
-      if (finalized.reason === 'pcs_whole') toast.error(t.suppPurchasePcsWhole);
-      else toast.error(t.required + ': ' + t.whQuantity);
-      return;
-    }
-    if (w?.unit === 'pcs' && Math.abs(finalized.total - Math.floor(finalized.total)) > 1e-9) {
-      toast.error(t.suppPurchasePcsWhole);
-      return;
-    }
-    const item = state.warehouseItems.find((x) => x.id === editing.warehouseItemId);
-    const next = newPurchaseLine(editing.warehouseItemId, item ? prefPurchasePrice(item) : '');
-    setPurchaseForm((f) => ({
-      ...f,
-      lines: [
-        ...f.lines.map((l) =>
-          l.key === editing.key
-            ? { ...l, qtyParts: finalized.qtyParts, quantity: finalized.quantity }
-            : l,
-        ),
-        next,
-      ],
-    }));
-    setPurchaseEditingKey(next.key);
+  const selectPurchaseWarehouse = (editingKey: string, newWarehouseId: string) => {
+    const item = state.warehouseItems.find((x) => x.id === newWarehouseId);
+    const unitFor = (id: string) =>
+      state.warehouseItems.find((x) => x.id === id)?.unit ?? 'kg';
+    const { lines, editingKey: nextKey } = switchWarehouseOnLine(
+      purchaseForm.lines,
+      editingKey,
+      newWarehouseId,
+      prefPurchasePrice(item),
+      unitFor,
+      () => newPurchaseLine(),
+    );
+    setPurchaseForm((f) => ({ ...f, lines }));
+    setPurchaseEditingKey(nextKey);
   };
 
   const appendPurchaseQtyPart = (key: string) => {
@@ -1547,7 +1530,10 @@ export function Suppliers() {
                     purchaseForm.lines.find((l) => l.key === purchaseEditingKey) ??
                     purchaseForm.lines[purchaseForm.lines.length - 1];
                   const collapsedLines = purchaseForm.lines.filter(
-                    (l) => l.key !== editingLine?.key,
+                    (l) =>
+                      l.key !== editingLine?.key &&
+                      l.warehouseItemId &&
+                      lineQtyTotal(l, false) > 0,
                   );
                   const { w: editW, lineTotal: editTotal } = editingLine
                     ? parseDraftLine(editingLine)
@@ -1624,13 +1610,7 @@ export function Suppliers() {
                           <Label className="text-xs">{t.suppPurchasePickParent} *</Label>
                           <Select
                             value={editingLine.warehouseItemId || undefined}
-                            onValueChange={(v) => {
-                              const item = state.warehouseItems.find((x) => x.id === v);
-                              updatePurchaseLine(editingLine.key, {
-                                warehouseItemId: v,
-                                pricePerUnit: prefPurchasePrice(item),
-                              });
-                            }}
+                            onValueChange={(v) => selectPurchaseWarehouse(editingLine.key, v)}
                           >
                             <SelectTrigger className="rounded-xl">
                               <SelectValue placeholder={t.suppPurchasePickParent} />
@@ -1646,7 +1626,7 @@ export function Suppliers() {
                           {editW && (
                             <p className="text-[10px] text-slate-500">{t.suppPurchaseSessionQtyHint}</p>
                           )}
-                          <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="space-y-2">
                             <CumulativeQuantityField
                               label={<>{t.whQuantity} *</>}
                               quantity={editingLine.quantity}
@@ -1685,16 +1665,6 @@ export function Suppliers() {
                         </div>
                       )}
 
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full rounded-xl"
-                        onClick={commitPurchaseLineAndAddNext}
-                      >
-                        <Plus size={14} className="mr-1.5" />
-                        {t.suppAddPurchaseLine}
-                      </Button>
                     </>
                   );
                 })()}

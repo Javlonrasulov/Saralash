@@ -19,7 +19,7 @@ import { Badge } from '../components/ui/badge';
 import { formatDate, formatNumber, formatQuantity, TODAY, uid } from '../utils/format';
 import { StreetObjectPurchaseEditDialog } from '../components/StreetObjectPurchaseEditDialog';
 import { CumulativeQuantityField } from '../components/CumulativeQuantityField';
-import { appendQtyPart, finalizeQtyParts, lineQtyTotal, } from '../utils/purchase-qty-parts';
+import { appendQtyPart, finalizeQtyParts, lineQtyTotal, switchWarehouseOnLine, } from '../utils/purchase-qty-parts';
 const EMPTY_STREET_OBJECT = {
     fullName: '',
     phone: '',
@@ -214,39 +214,12 @@ export function StreetObjects() {
         const next = String(Math.round(purchaseOrderTotal * 100) / 100);
         setPurchaseForm((f) => (f.paidAmount === next ? f : { ...f, paidAmount: next }));
     }, [purchaseOpen, purchaseForm.onCredit, purchaseOrderTotal]);
-    const commitPurchaseLineAndAddNext = () => {
-        const editing = purchaseForm.lines.find((l) => l.key === purchaseEditingKey);
-        if (!editing)
-            return;
-        if (!editing.warehouseItemId) {
-            toast.error(t.required + ': ' + t.streetPurchasePickParent);
-            return;
-        }
-        const w = state.warehouseItems.find((x) => x.id === editing.warehouseItemId);
-        const finalized = finalizeQtyParts(editing, w?.unit ?? 'kg');
-        if (!finalized.ok) {
-            if (finalized.reason === 'pcs_whole')
-                toast.error(t.streetPurchasePcsWhole);
-            else
-                toast.error(t.required + ': ' + t.whQuantity);
-            return;
-        }
-        if (w?.unit === 'pcs' && Math.abs(finalized.total - Math.floor(finalized.total)) > 1e-9) {
-            toast.error(t.streetPurchasePcsWhole);
-            return;
-        }
-        const item = state.warehouseItems.find((x) => x.id === editing.warehouseItemId);
-        const next = newPurchaseLine(editing.warehouseItemId, item ? prefPurchasePrice(item) : '');
-        setPurchaseForm((f) => ({
-            ...f,
-            lines: [
-                ...f.lines.map((l) => l.key === editing.key
-                    ? { ...l, qtyParts: finalized.qtyParts, quantity: finalized.quantity }
-                    : l),
-                next,
-            ],
-        }));
-        setPurchaseEditingKey(next.key);
+    const selectPurchaseWarehouse = (editingKey, newWarehouseId) => {
+        const item = state.warehouseItems.find((x) => x.id === newWarehouseId);
+        const unitFor = (id) => state.warehouseItems.find((x) => x.id === id)?.unit ?? 'kg';
+        const { lines, editingKey: nextKey } = switchWarehouseOnLine(purchaseForm.lines, editingKey, newWarehouseId, prefPurchasePrice(item), unitFor, () => newPurchaseLine());
+        setPurchaseForm((f) => ({ ...f, lines }));
+        setPurchaseEditingKey(nextKey);
     };
     const appendPurchaseQtyPart = (key) => {
         const line = purchaseForm.lines.find((l) => l.key === key);
@@ -644,7 +617,9 @@ export function StreetObjects() {
                 }, children: _jsxs(DialogContent, { className: "max-h-[90vh] overflow-y-auto sm:max-w-xl", children: [_jsxs(DialogHeader, { children: [_jsx(DialogTitle, { children: t.streetPurchaseTitle }), _jsxs(DialogDescription, { className: "space-y-2 text-pretty", children: [purchaseSelectedStreetObject ? (_jsx("span", { className: "font-medium text-slate-800 dark:text-slate-100", children: purchaseSelectedStreetObject.fullName })) : null, _jsx("span", { className: "block", children: t.streetPurchaseDesc }), _jsx("span", { className: "block text-slate-600 dark:text-slate-300", children: t.streetPurchaseParentNote })] })] }), _jsxs("form", { onSubmit: handlePurchaseSubmit, className: "space-y-4", children: [_jsxs("div", { children: [_jsxs(Label, { children: [t.streetPurchasePickSupplier, " *"] }), _jsxs(Select, { value: purchaseForm.streetObjectId || undefined, onValueChange: (v) => setPurchaseForm((f) => ({ ...f, streetObjectId: v })), children: [_jsx(SelectTrigger, { className: "mt-1.5", children: _jsx(SelectValue, { placeholder: t.streetPurchasePickSupplier }) }), _jsx(SelectContent, { children: state.streetObjects.map((s) => (_jsx(SelectItem, { value: s.id, children: s.fullName }, s.id))) })] })] }), _jsxs("div", { children: [_jsx(Label, { children: t.whIncomeDate }), _jsx(Input, { type: "date", value: purchaseForm.incomeDate, onChange: (e) => setPurchaseForm((f) => ({ ...f, incomeDate: e.target.value })), className: "mt-1.5 max-w-[12rem]" })] }), warehousePurchaseOptions.length === 0 ? (_jsx("p", { className: "text-sm text-amber-700 dark:text-amber-300", children: t.streetNoParentProducts })) : (_jsxs("div", { className: "space-y-2", children: [_jsx(Label, { children: t.streetPurchaseLinesTitle }), (() => {
                                             const editingLine = purchaseForm.lines.find((l) => l.key === purchaseEditingKey) ??
                                                 purchaseForm.lines[purchaseForm.lines.length - 1];
-                                            const collapsedLines = purchaseForm.lines.filter((l) => l.key !== editingLine?.key);
+                                            const collapsedLines = purchaseForm.lines.filter((l) => l.key !== editingLine?.key &&
+                                                l.warehouseItemId &&
+                                                lineQtyTotal(l, false) > 0);
                                             const { w: editW, lineTotal: editTotal } = editingLine
                                                 ? parseDraftLine(editingLine)
                                                 : { w: undefined, lineTotal: null };
@@ -652,15 +627,9 @@ export function StreetObjects() {
                                                         const { w, qtyNum, priceNum, lineTotal } = parseDraftLine(line);
                                                         const unitLbl = w?.unit === 'kg' ? 'kg' : t.unitPcs;
                                                         return (_jsxs("div", { className: "flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900/40", children: [_jsxs("div", { className: "min-w-0 flex-1 text-sm leading-snug", children: [_jsx("span", { className: "font-medium text-slate-800 dark:text-slate-100", children: w ? warehouseProductTitle(w) : '—' }), qtyNum != null && (_jsxs("span", { className: "text-slate-600 dark:text-slate-300", children: [' ', "\u00B7", ' ', _jsxs("span", { className: "nums", children: [formatQuantity(qtyNum, w?.unit ?? 'kg'), " ", unitLbl] }), priceNum != null && (_jsxs(_Fragment, { children: [' ', "\u00B7", ' ', _jsxs("span", { className: "nums", children: [formatNumber(priceNum), " so'm/", unitLbl] })] })), lineTotal != null && (_jsxs(_Fragment, { children: [' ', "\u00B7", ' ', _jsxs("span", { className: "nums font-semibold text-slate-800 dark:text-white", children: [formatNumber(lineTotal), " so'm"] })] }))] }))] }), _jsx(Button, { type: "button", variant: "ghost", size: "icon", className: "h-8 w-8 shrink-0 text-slate-500 hover:text-sky-600", "aria-label": t.posEditOrder, onClick: () => setPurchaseEditingKey(line.key), children: _jsx(Pencil, { size: 15 }) }), _jsx(Button, { type: "button", variant: "ghost", size: "icon", className: "h-8 w-8 shrink-0 text-slate-500 hover:text-red-600", "aria-label": t.delete, onClick: () => removePurchaseLine(line.key), children: _jsx(Trash2, { size: 15 }) })] }, line.key));
-                                                    }), editingLine && (_jsxs("div", { className: "space-y-2 rounded-xl border border-sky-200 bg-sky-50/40 p-3 dark:border-sky-900/50 dark:bg-sky-950/20", children: [_jsxs(Label, { className: "text-xs", children: [t.streetPurchasePickParent, " *"] }), _jsxs(Select, { value: editingLine.warehouseItemId || undefined, onValueChange: (v) => {
-                                                                    const item = state.warehouseItems.find((x) => x.id === v);
-                                                                    updatePurchaseLine(editingLine.key, {
-                                                                        warehouseItemId: v,
-                                                                        pricePerUnit: prefPurchasePrice(item),
-                                                                    });
-                                                                }, children: [_jsx(SelectTrigger, { className: "rounded-xl", children: _jsx(SelectValue, { placeholder: t.streetPurchasePickParent }) }), _jsx(SelectContent, { className: "max-h-72", children: warehousePurchaseOptions.map((opt) => (_jsx(SelectItem, { value: opt.id, children: warehouseSessionLabel(opt) }, opt.id))) })] }), editW && (_jsx("p", { className: "text-[10px] text-slate-500", children: t.streetPurchaseSessionQtyHint })), _jsxs("div", { className: "grid gap-2 sm:grid-cols-2", children: [_jsx(CumulativeQuantityField, { label: _jsxs(_Fragment, { children: [t.whQuantity, " *"] }), quantity: editingLine.quantity, qtyParts: editingLine.qtyParts, unit: editW?.unit ?? 'kg', unitLabel: editW?.unit === 'pcs' ? t.unitPcs : 'kg', runningTotalLabel: t.streetQtyRunningTotal, addAriaLabel: t.streetQtyAddPart, placeholder: editW?.unit === 'kg' ? '2,3' : '5', pcsHint: editW?.unit === 'pcs' ? t.streetPurchasePcsWhole : undefined, onQuantityChange: (value) => updatePurchaseLine(editingLine.key, { quantity: value }), onAddPart: () => appendPurchaseQtyPart(editingLine.key) }), _jsxs("div", { children: [_jsx(Label, { className: "text-xs", children: t.streetPricePerUnit }), _jsx(Input, { value: editingLine.pricePerUnit, onChange: (e) => updatePurchaseLine(editingLine.key, {
+                                                    }), editingLine && (_jsxs("div", { className: "space-y-2 rounded-xl border border-sky-200 bg-sky-50/40 p-3 dark:border-sky-900/50 dark:bg-sky-950/20", children: [_jsxs(Label, { className: "text-xs", children: [t.streetPurchasePickParent, " *"] }), _jsxs(Select, { value: editingLine.warehouseItemId || undefined, onValueChange: (v) => selectPurchaseWarehouse(editingLine.key, v), children: [_jsx(SelectTrigger, { className: "rounded-xl", children: _jsx(SelectValue, { placeholder: t.streetPurchasePickParent }) }), _jsx(SelectContent, { className: "max-h-72", children: warehousePurchaseOptions.map((opt) => (_jsx(SelectItem, { value: opt.id, children: warehouseSessionLabel(opt) }, opt.id))) })] }), editW && (_jsx("p", { className: "text-[10px] text-slate-500", children: t.streetPurchaseSessionQtyHint })), _jsxs("div", { className: "space-y-2", children: [_jsx(CumulativeQuantityField, { label: _jsxs(_Fragment, { children: [t.whQuantity, " *"] }), quantity: editingLine.quantity, qtyParts: editingLine.qtyParts, unit: editW?.unit ?? 'kg', unitLabel: editW?.unit === 'pcs' ? t.unitPcs : 'kg', runningTotalLabel: t.streetQtyRunningTotal, addAriaLabel: t.streetQtyAddPart, placeholder: editW?.unit === 'kg' ? '2,3' : '5', pcsHint: editW?.unit === 'pcs' ? t.streetPurchasePcsWhole : undefined, onQuantityChange: (value) => updatePurchaseLine(editingLine.key, { quantity: value }), onAddPart: () => appendPurchaseQtyPart(editingLine.key) }), _jsxs("div", { children: [_jsx(Label, { className: "text-xs", children: t.streetPricePerUnit }), _jsx(Input, { value: editingLine.pricePerUnit, onChange: (e) => updatePurchaseLine(editingLine.key, {
                                                                                     pricePerUnit: e.target.value,
-                                                                                }), className: "mt-1 rounded-xl", inputMode: "decimal" })] })] }), _jsxs("p", { className: "text-xs text-slate-600 dark:text-slate-300", children: [t.streetLineTotal, ":", ' ', _jsx("span", { className: "nums font-semibold", children: editTotal != null ? `${formatNumber(editTotal)} so'm` : '—' })] })] })), _jsxs(Button, { type: "button", variant: "outline", size: "sm", className: "w-full rounded-xl", onClick: commitPurchaseLineAndAddNext, children: [_jsx(Plus, { size: 14, className: "mr-1.5" }), t.streetAddPurchaseLine] })] }));
+                                                                                }), className: "mt-1 rounded-xl", inputMode: "decimal" })] })] }), _jsxs("p", { className: "text-xs text-slate-600 dark:text-slate-300", children: [t.streetLineTotal, ":", ' ', _jsx("span", { className: "nums font-semibold", children: editTotal != null ? `${formatNumber(editTotal)} so'm` : '—' })] })] }))] }));
                                         })()] })), purchaseByProductSummary.length > 0 && (_jsxs("div", { className: "rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2.5 dark:border-indigo-900/50 dark:bg-indigo-950/30", children: [_jsx("p", { className: "text-xs font-medium text-indigo-800 dark:text-indigo-200", children: t.streetByProductSummary }), _jsx("ul", { className: "mt-2 space-y-1.5 text-sm", children: purchaseByProductSummary.map((g) => (_jsxs("li", { className: "flex flex-wrap items-baseline justify-between gap-2 text-slate-800 dark:text-slate-100", children: [_jsx("span", { className: "min-w-0 truncate font-medium", children: g.label }), _jsxs("span", { className: "nums shrink-0 text-right text-xs sm:text-sm", children: [formatQuantity(g.qty, g.unit), " ", g.unit === 'kg' ? 'kg' : t.unitPcs, g.hasPrice ? ` · ${formatNumber(g.amount)} so'm` : ''] })] }, g.id))) })] })), _jsxs("div", { className: "rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/40", children: [_jsx("p", { className: "text-xs text-slate-500", children: t.streetPurchaseGrandTotal }), _jsx("p", { className: "nums text-lg font-semibold text-slate-900 dark:text-slate-100", children: purchaseOrderTotal != null ? `${formatNumber(purchaseOrderTotal)} so'm` : '—' })] }), _jsxs("div", { children: [_jsxs(Label, { children: [t.streetPaidAmount, purchaseOrderTotal != null ? ' *' : ''] }), _jsx(Input, { value: purchaseForm.paidAmount, onChange: (e) => setPurchaseForm((f) => ({ ...f, paidAmount: e.target.value })), className: "mt-1.5", placeholder: "0", inputMode: "decimal", disabled: purchaseOrderTotal == null || !purchaseForm.onCredit }), purchaseForm.onCredit && purchaseOrderTotal != null && debtPreviewSo != null && (_jsxs("p", { className: "mt-1 text-xs font-medium text-amber-800 dark:text-amber-200", children: [t.streetDebtPreview, ": ", formatNumber(debtPreviewSo), " so'm"] }))] }), _jsxs("label", { className: "flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700", children: [_jsx("input", { type: "checkbox", className: "mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600", checked: purchaseForm.onCredit, onChange: (e) => setPurchaseForm((f) => ({ ...f, onCredit: e.target.checked })) }), _jsx("span", { className: "text-sm leading-snug text-slate-700 dark:text-slate-300", children: t.streetOnCredit })] }), _jsxs("div", { children: [_jsx(Label, { children: t.notes }), _jsx(Input, { value: purchaseForm.notes, onChange: (e) => setPurchaseForm((f) => ({ ...f, notes: e.target.value })), className: "mt-1.5" })] }), _jsxs(DialogFooter, { children: [_jsx(Button, { type: "button", variant: "outline", onClick: () => setPurchaseOpen(false), children: t.cancel }), _jsx(Button, { type: "submit", children: t.streetPurchaseSubmit })] })] })] }) }), _jsx(Dialog, { open: debtRepayOpen, onOpenChange: (open) => {
                     setDebtRepayOpen(open);
                     if (!open) {

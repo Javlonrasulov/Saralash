@@ -71,7 +71,7 @@ export function CumulativeQuantityField({
           ) : null}
           <Input
             value={quantity}
-            onChange={(e) => onQuantityChange(e.target.value)}
+            onChange={(e) => onQuantityChange(e.target.value.replace(/[^\d.,]/g, ''))}
             onKeyDown={handleKeyDown}
             className="min-w-[3.5rem] flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
             inputMode="decimal"
