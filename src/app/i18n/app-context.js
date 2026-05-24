@@ -1,6 +1,7 @@
 import { jsx as _jsx } from "react/jsx-runtime";
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { translations } from './translations';
+import { extendWithStreetLabels } from './street-labels';
 const LANG_KEY = 'saralash_lang';
 const AppContext = createContext(null);
 function readStoredLang() {
@@ -25,7 +26,7 @@ export function AppProvider({ children }) {
             /* ignore */
         }
     };
-    const t = useMemo(() => translations[lang], [lang]);
+    const t = useMemo(() => extendWithStreetLabels(translations[lang], lang), [lang]);
     useEffect(() => {
         document.documentElement.lang = lang === 'ru' ? 'ru' : 'uz';
     }, [lang]);

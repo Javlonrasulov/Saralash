@@ -16,13 +16,13 @@ import {
 import { toast } from 'sonner';
 import {
   useStore,
-  type Supplier,
-  type SupplierPurchaseRecord,
-  type SupplierPurchaseHistoryGroup,
+  type StreetObject,
+  type StreetPurchaseRecord,
+  type StreetPurchaseHistoryGroup,
   type WarehouseItem,
-  getSupplierRemainingDebt,
-  getOrphanSupplierDebtIncurred,
-  groupSupplierPurchasesForHistory,
+  getStreetObjectRemainingDebt,
+  getOrphanStreetDebtIncurred,
+  groupStreetPurchasesForHistory,
 } from '../store/saralash-store';
 import { useNavDateFilter } from '../context/nav-date-range-context';
 import { isYmdInNavFilter, formatYmdDisplay, todayYmd } from '../lib/nav-date-range';
@@ -69,7 +69,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Badge } from '../components/ui/badge';
 import { categoryLabel, categoryMeta } from '../utils/category';
 import { formatDate, formatNumber, formatQuantity, TODAY, uid } from '../utils/format';
-import { SupplierPurchaseEditDialog } from '../components/SupplierPurchaseEditDialog';
+import { StreetObjectPurchaseEditDialog } from '../components/StreetObjectPurchaseEditDialog';
 import { CumulativeQuantityField } from '../components/CumulativeQuantityField';
 import {
   appendQtyPart,
@@ -77,14 +77,14 @@ import {
   lineQtyTotal,
 } from '../utils/purchase-qty-parts';
 
-interface SupplierFormState {
+interface StreetObjectFormState {
   fullName: string;
   phone: string;
   address: string;
   notes: string;
 }
 
-const EMPTY_SUPPLIER: SupplierFormState = {
+const EMPTY_STREET_OBJECT: StreetObjectFormState = {
   fullName: '',
   phone: '',
   address: '',
@@ -100,7 +100,7 @@ interface PurchaseDraftLine {
 }
 
 interface PurchaseFormState {
-  supplierId: string;
+  streetObjectId: string;
   incomeDate: string;
   paidAmount: string;
   onCredit: boolean;
@@ -113,7 +113,7 @@ function newPurchaseLine(warehouseItemId = '', pricePerUnit = ''): PurchaseDraft
 }
 
 const EMPTY_PURCHASE: PurchaseFormState = {
-  supplierId: '',
+  streetObjectId: '',
   incomeDate: TODAY,
   paidAmount: '',
   onCredit: false,
@@ -121,22 +121,22 @@ const EMPTY_PURCHASE: PurchaseFormState = {
   lines: [newPurchaseLine()],
 };
 
-export function Suppliers() {
+export function StreetObjects() {
   const {
     state,
-    addSupplier,
-    updateSupplier,
-    deleteSupplier,
-    purchaseLinesFromSupplier,
-    recordSupplierDebtRepayment,
+    addStreetObject,
+    updateStreetObject,
+    deleteStreetObject,
+    purchaseLinesFromStreetObject,
+    recordStreetDebtRepayment,
   } = useStore();
   const { t } = useApp();
   const { filter: navDateFilter } = useNavDateFilter();
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Supplier | null>(null);
-  const [form, setForm] = useState<SupplierFormState>(EMPTY_SUPPLIER);
-  const [confirmDelete, setConfirmDelete] = useState<Supplier | null>(null);
+  const [editing, setEditing] = useState<StreetObject | null>(null);
+  const [form, setForm] = useState<StreetObjectFormState>(EMPTY_STREET_OBJECT);
+  const [confirmDelete, setConfirmDelete] = useState<StreetObject | null>(null);
 
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [purchaseForm, setPurchaseForm] = useState<PurchaseFormState>(EMPTY_PURCHASE);
@@ -145,53 +145,53 @@ export function Suppliers() {
 
   const [mainTab, setMainTab] = useState<'list' | 'history' | 'debts'>('list');
   const [historySearch, setHistorySearch] = useState('');
-  const [historySupplierId, setHistorySupplierId] = useState<string>('__all');
-  const [historyEditBatch, setHistoryEditBatch] = useState<SupplierPurchaseHistoryGroup | null>(null);
+  const [historyStreetObjectId, sethistoryStreetObjectId] = useState<string>('__all');
+  const [historyEditBatch, setHistoryEditBatch] = useState<StreetPurchaseHistoryGroup | null>(null);
 
   const [debtRepayOpen, setDebtRepayOpen] = useState(false);
-  const [debtRepaySupplierId, setDebtRepaySupplierId] = useState('');
+  const [debtRepayStreetObjectId, setDebtRepayStreetObjectId] = useState('');
   const [debtRepayAmount, setDebtRepayAmount] = useState('');
   const [debtRepayDate, setDebtRepayDate] = useState(TODAY);
   const [debtRepayNotes, setDebtRepayNotes] = useState('');
 
-  const [supplierDetailOpen, setSupplierDetailOpen] = useState(false);
-  const [supplierDetail, setSupplierDetail] = useState<Supplier | null>(null);
+  const [streetObjectDetailOpen, setstreetObjectDetailOpen] = useState(false);
+  const [streetObjectDetail, setstreetObjectDetail] = useState<StreetObject | null>(null);
 
   const debtTabBadgeCount = useMemo(() => {
-    let n = state.suppliers.filter((s) => getSupplierRemainingDebt(state, s.id) > 1e-6).length;
-    if (getOrphanSupplierDebtIncurred(state) > 1e-6) n += 1;
+    let n = state.streetObjects.filter((s) => getStreetObjectRemainingDebt(state, s.id) > 1e-6).length;
+    if (getOrphanStreetDebtIncurred(state) > 1e-6) n += 1;
     return n;
-  }, [state.suppliers, state.supplierPurchases, state.supplierDebtRepayments]);
+  }, [state.streetObjects, state.streetPurchases, state.streetDebtRepayments]);
 
   const sortedDebtRepayments = useMemo(
     () =>
-      [...state.supplierDebtRepayments].sort(
+      [...state.streetDebtRepayments].sort(
         (a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt),
       ),
-    [state.supplierDebtRepayments],
+    [state.streetDebtRepayments],
   );
 
-  const supplierDetailPurchases = useMemo(() => {
-    if (!supplierDetail) return [];
-    return state.supplierPurchases
-      .filter((p) => p.supplierId === supplierDetail.id)
+  const streetObjectDetailPurchases = useMemo(() => {
+    if (!streetObjectDetail) return [];
+    return state.streetPurchases
+      .filter((p) => p.streetObjectId === streetObjectDetail.id)
       .slice()
       .sort(
         (a, b) =>
           String(b.incomeDate).localeCompare(String(a.incomeDate)) ||
           String(b.createdAt).localeCompare(String(a.createdAt)),
       );
-  }, [state.supplierPurchases, supplierDetail]);
+  }, [state.streetPurchases, streetObjectDetail]);
 
-  const supplierDetailPurchaseGroups = useMemo(
-    () => groupSupplierPurchasesForHistory(supplierDetailPurchases),
-    [supplierDetailPurchases],
+  const streetObjectDetailPurchaseGroups = useMemo(
+    () => groupStreetPurchasesForHistory(streetObjectDetailPurchases),
+    [streetObjectDetailPurchases],
   );
 
   const debtRepayRemaining = useMemo(() => {
-    if (!debtRepaySupplierId) return 0;
-    return getSupplierRemainingDebt(state, debtRepaySupplierId);
-  }, [state, debtRepaySupplierId]);
+    if (!debtRepayStreetObjectId) return 0;
+    return getStreetObjectRemainingDebt(state, debtRepayStreetObjectId);
+  }, [state, debtRepayStreetObjectId]);
 
   /** Ombor tartibi: avval ota, keyin uning ajratilgan bolalari. */
   const warehousePurchaseOptions = useMemo(() => {
@@ -227,18 +227,18 @@ export function Suppliers() {
   const prefPurchasePrice = (w: WarehouseItem | undefined) => {
     if (!w) return '';
     const own =
-      w.purchasePricePerUnit != null && Number.isFinite(w.purchasePricePerUnit) && w.purchasePricePerUnit > 0
-        ? w.purchasePricePerUnit
+      w.streetPurchasePricePerUnit != null && Number.isFinite(w.streetPurchasePricePerUnit) && w.streetPurchasePricePerUnit > 0
+        ? w.streetPurchasePricePerUnit
         : null;
     if (own != null) return String(own);
     if (w.parentWarehouseId) {
       const parent = state.warehouseItems.find((x) => x.id === w.parentWarehouseId);
       if (
-        parent?.purchasePricePerUnit != null &&
-        Number.isFinite(parent.purchasePricePerUnit) &&
-        parent.purchasePricePerUnit > 0
+        parent?.streetPurchasePricePerUnit != null &&
+        Number.isFinite(parent.streetPurchasePricePerUnit) &&
+        parent.streetPurchasePricePerUnit > 0
       ) {
-        return String(parent.purchasePricePerUnit);
+        return String(parent.streetPurchasePricePerUnit);
       }
     }
     return '';
@@ -246,18 +246,18 @@ export function Suppliers() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return state.suppliers;
-    return state.suppliers.filter(
+    if (!q) return state.streetObjects;
+    return state.streetObjects.filter(
       (s) =>
         s.fullName.toLowerCase().includes(q) ||
         s.phone.toLowerCase().includes(q) ||
         s.address.toLowerCase().includes(q),
     );
-  }, [state.suppliers, search]);
+  }, [state.streetObjects, search]);
 
-  const purchaseSelectedSupplier = useMemo(
-    () => state.suppliers.find((s) => s.id === purchaseForm.supplierId),
-    [state.suppliers, purchaseForm.supplierId],
+  const purchaseSelectedStreetObject = useMemo(
+    () => state.streetObjects.find((s) => s.id === purchaseForm.streetObjectId),
+    [state.streetObjects, purchaseForm.streetObjectId],
   );
 
   const parseDraftLine = (line: PurchaseDraftLine) => {
@@ -345,18 +345,18 @@ export function Suppliers() {
     const editing = purchaseForm.lines.find((l) => l.key === purchaseEditingKey);
     if (!editing) return;
     if (!editing.warehouseItemId) {
-      toast.error(t.required + ': ' + t.suppPurchasePickParent);
+      toast.error(t.required + ': ' + t.streetPurchasePickParent);
       return;
     }
     const w = state.warehouseItems.find((x) => x.id === editing.warehouseItemId);
     const finalized = finalizeQtyParts(editing, w?.unit ?? 'kg');
     if (!finalized.ok) {
-      if (finalized.reason === 'pcs_whole') toast.error(t.suppPurchasePcsWhole);
+      if (finalized.reason === 'pcs_whole') toast.error(t.streetPurchasePcsWhole);
       else toast.error(t.required + ': ' + t.whQuantity);
       return;
     }
     if (w?.unit === 'pcs' && Math.abs(finalized.total - Math.floor(finalized.total)) > 1e-9) {
-      toast.error(t.suppPurchasePcsWhole);
+      toast.error(t.streetPurchasePcsWhole);
       return;
     }
     const item = state.warehouseItems.find((x) => x.id === editing.warehouseItemId);
@@ -378,13 +378,13 @@ export function Suppliers() {
   const appendPurchaseQtyPart = (key: string) => {
     const line = purchaseForm.lines.find((l) => l.key === key);
     if (!line?.warehouseItemId) {
-      toast.error(t.required + ': ' + t.suppPurchasePickParent);
+      toast.error(t.required + ': ' + t.streetPurchasePickParent);
       return;
     }
     const w = state.warehouseItems.find((x) => x.id === line.warehouseItemId);
     const result = appendQtyPart(line, w?.unit ?? 'kg');
     if (!result.ok) {
-      if (result.reason === 'pcs_whole') toast.error(t.suppPurchasePcsWhole);
+      if (result.reason === 'pcs_whole') toast.error(t.streetPurchasePcsWhole);
       else toast.error(t.required + ': ' + t.whQuantity);
       return;
     }
@@ -410,26 +410,26 @@ export function Suppliers() {
   };
 
   const filteredHistoryRows = useMemo(() => {
-    let rows = state.supplierPurchases.filter((p) =>
+    let rows = state.streetPurchases.filter((p) =>
       isYmdInNavFilter(p.incomeDate, navDateFilter),
     );
-    if (historySupplierId !== '__all') {
-      rows = rows.filter((p) => p.supplierId === historySupplierId);
+    if (historyStreetObjectId !== '__all') {
+      rows = rows.filter((p) => p.streetObjectId === historyStreetObjectId);
     }
     const q = historySearch.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
         (p) =>
           p.productName.toLowerCase().includes(q) ||
-          p.supplierName.toLowerCase().includes(q) ||
+          p.streetObjectName.toLowerCase().includes(q) ||
           String(p.category).toLowerCase().includes(q),
       );
     }
     return rows;
-  }, [state.supplierPurchases, historySearch, historySupplierId, navDateFilter]);
+  }, [state.streetPurchases, historySearch, historyStreetObjectId, navDateFilter]);
 
   const historyGroups = useMemo(
-    () => groupSupplierPurchasesForHistory(filteredHistoryRows),
+    () => groupStreetPurchasesForHistory(filteredHistoryRows),
     [filteredHistoryRows],
   );
 
@@ -442,11 +442,11 @@ export function Suppliers() {
   const historyPeriodSummary = useMemo(() => {
     if (navDateFilter.mode === 'all') return null;
 
-    let rows = state.supplierPurchases.filter((p) =>
+    let rows = state.streetPurchases.filter((p) =>
       isYmdInNavFilter(p.incomeDate, navDateFilter),
     );
-    if (historySupplierId !== '__all') {
-      rows = rows.filter((p) => p.supplierId === historySupplierId);
+    if (historyStreetObjectId !== '__all') {
+      rows = rows.filter((p) => p.streetObjectId === historyStreetObjectId);
     }
 
     const byProduct = new Map<
@@ -480,10 +480,10 @@ export function Suppliers() {
       totalKg,
       totalPcs,
       productCount: products.length,
-      batchCount: groupSupplierPurchasesForHistory(rows).length,
+      batchCount: groupStreetPurchasesForHistory(rows).length,
       products,
     };
-  }, [state.supplierPurchases, navDateFilter, historySupplierId]);
+  }, [state.streetPurchases, navDateFilter, historyStreetObjectId]);
 
   const listPurchaseScope = useMemo(() => {
     const today = todayYmd();
@@ -504,17 +504,17 @@ export function Suppliers() {
 
   const purchaseSummaryTitle =
     listPurchaseScope.kind === 'day' && listPurchaseScope.isToday
-      ? t.suppDailyPurchaseSummary
-      : t.suppDailyPurchaseSummaryDay;
+      ? t.streetDailyPurchaseSummary
+      : t.streetDailyPurchaseSummaryDay;
 
   const purchaseSummaryEmpty =
     listPurchaseScope.kind === 'day' && listPurchaseScope.isToday
-      ? t.suppDailyPurchaseEmpty
-      : t.suppDailyPurchaseEmptyDay;
+      ? t.streetDailyPurchaseEmpty
+      : t.streetDailyPurchaseEmptyDay;
 
   const todayPurchaseItems = useMemo(() => {
     const byProduct = new Map<string, { qty: number; unit: 'kg' | 'pcs' }>();
-    for (const p of state.supplierPurchases) {
+    for (const p of state.streetPurchases) {
       if (listPurchaseScope.kind === 'day') {
         if (p.incomeDate !== listPurchaseScope.day) continue;
       } else if (!isYmdInNavFilter(p.incomeDate, navDateFilter)) {
@@ -530,7 +530,7 @@ export function Suppliers() {
     return [...byProduct.entries()]
       .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
       .map(([name, { qty, unit }]) => ({ name, qty, unit }));
-  }, [state.supplierPurchases, listPurchaseScope, navDateFilter]);
+  }, [state.streetPurchases, listPurchaseScope, navDateFilter]);
 
   const todayPurchaseStats = useMemo(() => {
     let totalKg = 0;
@@ -542,7 +542,7 @@ export function Suppliers() {
     return { totalKg, totalPcs, count: todayPurchaseItems.length };
   }, [todayPurchaseItems]);
 
-  const summarizeBatchProducts = (lines: SupplierPurchaseRecord[]) => {
+  const summarizeBatchProducts = (lines: StreetPurchaseRecord[]) => {
     const map = new Map<string, { qty: number; unit: 'kg' | 'pcs' }>();
     for (const l of lines) {
       const prev = map.get(l.productName);
@@ -559,20 +559,20 @@ export function Suppliers() {
       .join(' · ');
   };
 
-  const batchMoneyTotals = (g: SupplierPurchaseHistoryGroup) => {
+  const batchMoneyTotals = (g: StreetPurchaseHistoryGroup) => {
     const totalAmount = g.lines.reduce((s, l) => s + (l.totalAmount ?? 0), 0);
     const paid = g.lines.reduce((s, l) => s + (l.paidAmount ?? 0), 0);
-    const debt = g.lines.reduce((s, l) => s + (l.supplierDebtAmount ?? 0), 0);
+    const debt = g.lines.reduce((s, l) => s + (l.streetObjectDebtAmount ?? 0), 0);
     return { totalAmount, paid, debt };
   };
 
   const openCreate = () => {
     setEditing(null);
-    setForm(EMPTY_SUPPLIER);
+    setForm(EMPTY_STREET_OBJECT);
     setDialogOpen(true);
   };
 
-  const openEdit = (supplier: Supplier) => {
+  const openEdit = (supplier: StreetObject) => {
     setEditing(supplier);
     setForm({
       fullName: supplier.fullName,
@@ -594,9 +594,9 @@ export function Suppliers() {
     setPurchaseOpen(true);
   };
 
-  const openSupplierPurchaseDetail = (s: Supplier) => {
-    setSupplierDetail(s);
-    setSupplierDetailOpen(true);
+  const openSupplierPurchaseDetail = (s : StreetObject) => {
+    setstreetObjectDetail(s);
+    setstreetObjectDetailOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -608,33 +608,33 @@ export function Suppliers() {
       notes: form.notes.trim() || undefined,
     };
     if (!trimmed.fullName || !trimmed.phone) {
-      toast.error(t.required + ': ' + t.suppName + ' / ' + t.suppPhone);
+      toast.error(t.required + ': ' + t.streetName + ' / ' + t.streetPhone);
       return;
     }
     if (editing) {
-      updateSupplier({ ...editing, ...trimmed });
+      updateStreetObject({ ...editing, ...trimmed });
       toast.success(t.save);
     } else {
-      addSupplier(trimmed);
+      addStreetObject(trimmed);
       toast.success(t.add);
     }
     setDialogOpen(false);
-    setForm(EMPTY_SUPPLIER);
+    setForm(EMPTY_STREET_OBJECT);
     setEditing(null);
   };
 
   const handlePurchaseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const supplier = state.suppliers.find((s) => s.id === purchaseForm.supplierId);
+    const supplier = state.streetObjects.find((s) => s.id === purchaseForm.streetObjectId);
     if (!supplier) {
-      toast.error(t.required + ': ' + t.suppPurchasePickSupplier);
+      toast.error(t.required + ': ' + t.streetPurchasePickSupplier);
       return;
     }
 
     const resolvedLines: Array<{
       warehouseItemId: string;
       quantity: number;
-      purchasePricePerUnit: number | null;
+      streetPurchasePricePerUnit: number | null;
       w: WarehouseItem;
     }> = [];
 
@@ -646,7 +646,7 @@ export function Suppliers() {
       if (!hasAny) continue;
       const fin = finalizeQtyParts(line, w?.unit ?? 'kg');
       if (!fin.ok) {
-        if (fin.reason === 'pcs_whole') toast.error(t.suppPurchasePcsWhole);
+        if (fin.reason === 'pcs_whole') toast.error(t.streetPurchasePcsWhole);
         else toast.error(t.required + ': ' + t.whQuantity);
         return;
       }
@@ -668,13 +668,13 @@ export function Suppliers() {
         return;
       }
       if (w.unit === 'pcs' && Math.abs(qtyNum - Math.floor(qtyNum)) > 1e-9) {
-        toast.error(t.suppPurchasePcsWhole);
+        toast.error(t.streetPurchasePcsWhole);
         return;
       }
       resolvedLines.push({
         warehouseItemId: line.warehouseItemId,
         quantity: qtyNum,
-        purchasePricePerUnit: priceNum,
+        streetPurchasePricePerUnit: priceNum,
         w,
       });
     }
@@ -685,7 +685,7 @@ export function Suppliers() {
       if (purchaseForm.onCredit && payRaw === '') {
         paidNum = 0;
       } else if (!payRaw) {
-        toast.error(t.required + ': ' + t.suppPaidAmount);
+        toast.error(t.required + ': ' + t.streetPaidAmount);
         return;
       } else {
         paidNum = parseFloat(payRaw);
@@ -697,16 +697,16 @@ export function Suppliers() {
       const eps = 1e-4 * Math.max(1, purchaseOrderTotal);
       if (!purchaseForm.onCredit) {
         if (Math.abs(paidNum - purchaseOrderTotal) > eps) {
-          toast.error(t.suppPaidMustEqualTotal);
+          toast.error(t.streetPaidMustEqualTotal);
           return;
         }
       } else if (paidNum > purchaseOrderTotal + 1e-6) {
-        toast.error(t.suppPaidExceedsTotal);
+        toast.error(t.streetPaidExceedsTotal);
         return;
       }
     }
 
-    const ok = purchaseLinesFromSupplier(supplier.id, {
+    const ok = purchaseLinesFromStreetObject(supplier.id, {
       incomeDate: purchaseForm.incomeDate,
       notes: purchaseForm.notes.trim() || undefined,
       onCredit: purchaseForm.onCredit,
@@ -714,28 +714,28 @@ export function Suppliers() {
       lines: resolvedLines.map((r) => ({
         warehouseItemId: r.warehouseItemId,
         quantity: r.quantity,
-        purchasePricePerUnit: r.purchasePricePerUnit,
+        streetPurchasePricePerUnit: r.streetPurchasePricePerUnit,
       })),
     });
     if (!ok) {
       toast.error(t.required);
       return;
     }
-    toast.success(t.suppPurchaseSuccess);
+    toast.success(t.streetPurchaseSuccess);
     setPurchaseOpen(false);
     setPurchaseForm(EMPTY_PURCHASE);
   };
 
   const handleDelete = () => {
     if (!confirmDelete) return;
-    deleteSupplier(confirmDelete.id);
+    deleteStreetObject(confirmDelete.id);
     toast.success(t.delete);
     setConfirmDelete(null);
   };
 
   const openDebtRepay = (supplierId: string) => {
-    const rem = getSupplierRemainingDebt(state, supplierId);
-    setDebtRepaySupplierId(supplierId);
+    const rem = getStreetObjectRemainingDebt(state, supplierId);
+    setDebtRepayStreetObjectId(supplierId);
     setDebtRepayAmount(rem > 1e-6 ? String(Math.round(rem * 100) / 100) : '');
     setDebtRepayDate(TODAY);
     setDebtRepayNotes('');
@@ -744,14 +744,14 @@ export function Suppliers() {
 
   const handleDebtRepaySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!debtRepaySupplierId) {
+    if (!debtRepayStreetObjectId) {
       toast.error(t.required);
       return;
     }
-    const max = getSupplierRemainingDebt(state, debtRepaySupplierId);
+    const max = getStreetObjectRemainingDebt(state, debtRepayStreetObjectId);
     const raw = debtRepayAmount.trim().replace(',', '.');
     if (!raw) {
-      toast.error(t.required + ': ' + t.suppDebtPayAmount);
+      toast.error(t.required + ': ' + t.streetDebtPayAmount);
       return;
     }
     const amt = parseFloat(raw);
@@ -760,21 +760,21 @@ export function Suppliers() {
       return;
     }
     if (amt > max + 1e-6) {
-      toast.error(t.suppDebtExceedsRemaining);
+      toast.error(t.streetDebtExceedsRemaining);
       return;
     }
-    const row = recordSupplierDebtRepayment(debtRepaySupplierId, {
+    const row = recordStreetDebtRepayment(debtRepayStreetObjectId, {
       amount: amt,
       date: debtRepayDate,
       notes: debtRepayNotes.trim() || undefined,
     });
     if (!row) {
-      toast.error(t.suppDebtExceedsRemaining);
+      toast.error(t.streetDebtExceedsRemaining);
       return;
     }
-    toast.success(t.suppDebtPaySuccess);
+    toast.success(t.streetDebtPaySuccess);
     setDebtRepayOpen(false);
-    setDebtRepaySupplierId('');
+    setDebtRepayStreetObjectId('');
     setDebtRepayAmount('');
     setDebtRepayNotes('');
   };
@@ -789,18 +789,18 @@ export function Suppliers() {
         <TabsList className="w-full overflow-x-auto sm:w-auto">
           <TabsTrigger value="list" className="flex-1 gap-1.5 sm:flex-none">
             <Truck size={14} />
-            {t.suppTabSuppliers}
+            {t.streetTabSuppliers}
           </TabsTrigger>
           <TabsTrigger value="history" className="flex-1 gap-1.5 sm:flex-none">
             <History size={14} />
-            {t.suppTabHistory}
+            {t.streetTabHistory}
             <Badge variant="muted" className="ml-0.5 text-[10px]">
               {historyGroups.length}
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="debts" className="flex-1 gap-1.5 sm:flex-none">
             <Wallet size={14} />
-            {t.suppTabDebts}
+            {t.streetTabDebts}
             {debtTabBadgeCount > 0 ? (
               <Badge variant="danger" className="ml-0.5 text-[10px]">
                 {debtTabBadgeCount}
@@ -811,7 +811,7 @@ export function Suppliers() {
 
         <TabsContent value="list" className="mt-0 space-y-4">
           <Card className="border-indigo-100 bg-indigo-50/60 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/30">
-            <p className="text-sm text-indigo-900 dark:text-indigo-200">{t.suppIntro}</p>
+            <p className="text-sm text-indigo-900 dark:text-indigo-200">{t.streetIntro}</p>
           </Card>
 
           <Card className="overflow-hidden border-emerald-200/70 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/40 p-0 shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/40 dark:via-slate-900 dark:to-teal-950/20">
@@ -854,7 +854,7 @@ export function Suppliers() {
                     </p>
                   )}
                   <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                    {formatNumber(todayPurchaseStats.count)} {t.suppHistoryProductCount}
+                    {formatNumber(todayPurchaseStats.count)} {t.streetHistoryProductCount}
                   </p>
                 </div>
               )}
@@ -902,7 +902,7 @@ export function Suppliers() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder={t.suppSearchPlaceholder}
+                  placeholder={t.streetSearchPlaceholder}
                   className="pl-9"
                 />
               </div>
@@ -912,17 +912,17 @@ export function Suppliers() {
                   variant="default"
                   className="flex-1 sm:flex-none"
                   onClick={openPurchaseDialog}
-                  disabled={state.suppliers.length === 0 || warehousePurchaseOptions.length === 0}
+                  disabled={state.streetObjects.length === 0 || warehousePurchaseOptions.length === 0}
                   title={
-                    warehousePurchaseOptions.length === 0 ? t.suppNoParentProducts : undefined
+                    warehousePurchaseOptions.length === 0 ? t.streetNoParentProducts : undefined
                   }
                 >
                   <ShoppingBag size={16} />
-                  {t.suppPurchase}
+                  {t.streetPurchase}
                 </Button>
                 <Button type="button" onClick={openCreate} className="flex-1 sm:flex-none">
                   <Plus size={16} />
-                  {t.suppAdd}
+                  {t.streetAdd}
                 </Button>
               </div>
             </div>
@@ -932,9 +932,9 @@ export function Suppliers() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t.suppName}</TableHead>
-              <TableHead>{t.suppPhone}</TableHead>
-              <TableHead>{t.suppAddress}</TableHead>
+              <TableHead>{t.streetName}</TableHead>
+              <TableHead>{t.streetPhone}</TableHead>
+              <TableHead>{t.streetAddress}</TableHead>
               <TableHead className="text-right">{t.actions}</TableHead>
             </TableRow>
           </TableHeader>
@@ -1037,19 +1037,19 @@ export function Suppliers() {
                 <Input
                   value={historySearch}
                   onChange={(e) => setHistorySearch(e.target.value)}
-                  placeholder={t.suppHistorySearch}
+                  placeholder={t.streetHistorySearch}
                   className="pl-9"
                 />
               </div>
               <div className="w-full shrink-0 sm:w-56">
-                <Label className="text-xs text-slate-500">{t.suppHistoryFilterSupplier}</Label>
-                <Select value={historySupplierId} onValueChange={setHistorySupplierId}>
+                <Label className="text-xs text-slate-500">{t.streetHistoryFilterSupplier}</Label>
+                <Select value={historyStreetObjectId} onValueChange={sethistoryStreetObjectId}>
                   <SelectTrigger className="mt-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all">{t.suppHistoryAllSuppliers}</SelectItem>
-                    {state.suppliers.map((s) => (
+                    <SelectItem value="__all">{t.streetHistoryAllSuppliers}</SelectItem>
+                    {state.streetObjects.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.fullName}
                       </SelectItem>
@@ -1069,12 +1069,12 @@ export function Suppliers() {
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
-                      {t.suppHistoryPeriodSummary}
+                      {t.streetHistoryPeriodSummary}
                     </h3>
                     <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{historyPeriodLabel}</p>
                     {historyPeriodSummary.batchCount > 0 && (
                       <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-600/80 dark:text-indigo-400/80">
-                        {formatNumber(historyPeriodSummary.batchCount)} {t.suppHistoryProductCount}
+                        {formatNumber(historyPeriodSummary.batchCount)} {t.streetHistoryProductCount}
                       </p>
                     )}
                   </div>
@@ -1082,7 +1082,7 @@ export function Suppliers() {
                 {historyPeriodSummary.products.length > 0 && (
                   <div className="shrink-0 rounded-xl border border-indigo-100/90 bg-white/80 px-3 py-2 text-right shadow-sm dark:border-indigo-900/50 dark:bg-slate-800/80">
                     <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                      {t.suppHistoryPeriodGrandTotal}
+                      {t.streetHistoryPeriodGrandTotal}
                     </p>
                     <p className="nums text-lg font-bold leading-none text-indigo-800 dark:text-indigo-300">
                       {historyPeriodSummary.totalAmount > 0
@@ -1100,20 +1100,20 @@ export function Suppliers() {
               <div className="p-4">
                 {historyPeriodSummary.products.length === 0 ? (
                   <p className="py-4 text-center text-sm text-slate-500 dark:text-slate-400">
-                    {t.suppHistoryPeriodEmpty}
+                    {t.streetHistoryPeriodEmpty}
                   </p>
                 ) : (
                   <>
                     <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      {t.suppHistoryPeriodByProduct}
+                      {t.streetHistoryPeriodByProduct}
                     </p>
                     <div className="hidden overflow-hidden rounded-xl border border-indigo-100/80 md:block dark:border-indigo-900/40">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-indigo-100/80 bg-indigo-50/50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:border-indigo-900/40 dark:bg-indigo-950/30">
-                            <th className="px-3 py-2">{t.suppHistoryColProduct}</th>
-                            <th className="px-3 py-2 text-right">{t.suppHistoryColQty}</th>
-                            <th className="px-3 py-2 text-right">{t.suppHistoryColTotal}</th>
+                            <th className="px-3 py-2">{t.streetHistoryColProduct}</th>
+                            <th className="px-3 py-2 text-right">{t.streetHistoryColQty}</th>
+                            <th className="px-3 py-2 text-right">{t.streetHistoryColTotal}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1166,18 +1166,18 @@ export function Suppliers() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t.suppHistoryColDate}</TableHead>
-                  <TableHead>{t.suppHistoryColSupplier}</TableHead>
-                  <TableHead>{t.suppHistoryColProducts}</TableHead>
-                  <TableHead className="text-right">{t.suppHistoryColTotal}</TableHead>
-                  <TableHead className="text-right">{t.suppHistoryColPaid}</TableHead>
-                  <TableHead className="text-right">{t.suppHistoryColDebt}</TableHead>
+                  <TableHead>{t.streetHistoryColDate}</TableHead>
+                  <TableHead>{t.streetHistoryColSupplier}</TableHead>
+                  <TableHead>{t.streetHistoryColProducts}</TableHead>
+                  <TableHead className="text-right">{t.streetHistoryColTotal}</TableHead>
+                  <TableHead className="text-right">{t.streetHistoryColPaid}</TableHead>
+                  <TableHead className="text-right">{t.streetHistoryColDebt}</TableHead>
                   <TableHead className="w-[5.5rem] text-right">{t.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {historyGroups.length === 0 ? (
-                  <TableEmpty colSpan={7} message={t.suppHistoryNoData} />
+                  <TableEmpty colSpan={7} message={t.streetHistoryNoData} />
                 ) : (
                   historyGroups.map((g) => {
                     const { totalAmount, paid, debt } = batchMoneyTotals(g);
@@ -1187,9 +1187,9 @@ export function Suppliers() {
                           {formatDate(g.incomeDate)}
                         </TableCell>
                         <TableCell className="max-w-[10rem]">
-                          <span className="font-medium text-slate-800 dark:text-white">{g.supplierName}</span>
-                          {!g.supplierId && (
-                            <span className="ml-1 text-[10px] text-slate-400">({t.suppHistoryDeletedSupplier})</span>
+                          <span className="font-medium text-slate-800 dark:text-white">{g.streetObjectName}</span>
+                          {!g.streetObjectId && (
+                            <span className="ml-1 text-[10px] text-slate-400">({t.streetHistoryDeletedSupplier})</span>
                           )}
                         </TableCell>
                         <TableCell className="max-w-[22rem]">
@@ -1197,7 +1197,7 @@ export function Suppliers() {
                             {summarizeBatchProducts(g.lines)}
                           </p>
                           <p className="mt-0.5 text-[10px] text-slate-400">
-                            {g.lines.length} {t.suppHistoryProductCount}
+                            {g.lines.length} {t.streetHistoryProductCount}
                           </p>
                         </TableCell>
                         <TableCell className="nums text-right font-semibold text-slate-800 dark:text-white">
@@ -1215,7 +1215,7 @@ export function Suppliers() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-slate-500 hover:text-sky-600"
-                            aria-label={t.suppEditPurchaseTitle}
+                            aria-label={t.streetEditPurchaseTitle}
                             onClick={() => setHistoryEditBatch(g)}
                           >
                             <Pencil size={15} />
@@ -1231,7 +1231,7 @@ export function Suppliers() {
 
           <div className="space-y-3 md:hidden">
             {historyGroups.length === 0 ? (
-              <Card className="p-8 text-center text-sm text-slate-400">{t.suppHistoryNoData}</Card>
+              <Card className="p-8 text-center text-sm text-slate-400">{t.streetHistoryNoData}</Card>
             ) : (
               historyGroups.map((g) => {
                 const { totalAmount, paid, debt } = batchMoneyTotals(g);
@@ -1239,7 +1239,7 @@ export function Suppliers() {
                   <Card key={g.batchId} className="p-4">
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-slate-800 dark:text-white">{g.supplierName}</p>
+                        <p className="font-semibold text-slate-800 dark:text-white">{g.streetObjectName}</p>
                         <p className="text-xs text-slate-500">{formatDate(g.incomeDate)}</p>
                       </div>
                       <Button
@@ -1247,7 +1247,7 @@ export function Suppliers() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 shrink-0 text-slate-500"
-                        aria-label={t.suppEditPurchaseTitle}
+                        aria-label={t.streetEditPurchaseTitle}
                         onClick={() => setHistoryEditBatch(g)}
                       >
                         <Pencil size={15} />
@@ -1257,22 +1257,22 @@ export function Suppliers() {
                       {summarizeBatchProducts(g.lines)}
                     </p>
                     <p className="mt-2 text-xs text-slate-500">
-                      {g.lines.length} {t.suppHistoryProductCount}
+                      {g.lines.length} {t.streetHistoryProductCount}
                     </p>
                     <div className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-sm dark:border-slate-700">
                       <div className="flex justify-between">
-                        <span className="text-slate-500">{t.suppHistoryColTotal}</span>
+                        <span className="text-slate-500">{t.streetHistoryColTotal}</span>
                         <span className="nums font-semibold">
                           {totalAmount > 0 ? `${formatNumber(totalAmount)} so'm` : '—'}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-500">{t.suppHistoryColPaid}</span>
+                        <span className="text-slate-500">{t.streetHistoryColPaid}</span>
                         <span className="nums">{paid > 0 ? `${formatNumber(paid)} so'm` : '—'}</span>
                       </div>
                       {debt > 1e-6 && (
                         <div className="flex justify-between text-amber-700 dark:text-amber-300">
-                          <span>{t.suppHistoryColDebt}</span>
+                          <span>{t.streetHistoryColDebt}</span>
                           <span className="nums font-medium">{formatNumber(debt)} so'm</span>
                         </div>
                       )}
@@ -1286,35 +1286,35 @@ export function Suppliers() {
 
         <TabsContent value="debts" className="mt-0 space-y-4">
           <Card className="border-amber-100 bg-amber-50/70 p-4 dark:border-amber-900/40 dark:bg-amber-950/25">
-            <p className="text-sm text-amber-950 dark:text-amber-100">{t.suppDebtIntro}</p>
+            <p className="text-sm text-amber-950 dark:text-amber-100">{t.streetDebtIntro}</p>
           </Card>
 
-          {getOrphanSupplierDebtIncurred(state) > 1e-6 && (
+          {getOrphanStreetDebtIncurred(state) > 1e-6 && (
             <Card className="border border-amber-200 bg-amber-50/90 p-4 dark:border-amber-800 dark:bg-amber-950/40">
               <p className="text-sm text-amber-900 dark:text-amber-100">
-                {t.suppDebtOrphanBanner}{' '}
-                <span className="nums font-semibold">{formatNumber(getOrphanSupplierDebtIncurred(state))} so'm</span>
+                {t.streetDebtOrphanBanner}{' '}
+                <span className="nums font-semibold">{formatNumber(getOrphanStreetDebtIncurred(state))} so'm</span>
               </p>
             </Card>
           )}
 
-          {state.suppliers.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-slate-400">{t.suppDebtNoSuppliers}</Card>
+          {state.streetObjects.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-slate-400">{t.streetDebtNoSuppliers}</Card>
           ) : (
             <>
               <Card className="hidden overflow-hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{t.suppName}</TableHead>
-                      <TableHead>{t.suppPhone}</TableHead>
-                      <TableHead className="text-right">{t.suppDebtColRemaining}</TableHead>
+                      <TableHead>{t.streetName}</TableHead>
+                      <TableHead>{t.streetPhone}</TableHead>
+                      <TableHead className="text-right">{t.streetDebtColRemaining}</TableHead>
                       <TableHead className="text-right">{t.actions}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {state.suppliers.map((s) => {
-                      const rem = getSupplierRemainingDebt(state, s.id);
+                    {state.streetObjects.map((s) => {
+                      const rem = getStreetObjectRemainingDebt(state, s.id);
                       return (
                         <TableRow key={s.id}>
                           <TableCell className="font-medium text-slate-800 dark:text-white">{s.fullName}</TableCell>
@@ -1334,7 +1334,7 @@ export function Suppliers() {
                               disabled={rem <= 1e-6}
                               onClick={() => openDebtRepay(s.id)}
                             >
-                              {t.suppDebtPayBtn}
+                              {t.streetDebtPayBtn}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -1345,8 +1345,8 @@ export function Suppliers() {
               </Card>
 
               <div className="space-y-3 md:hidden">
-                {state.suppliers.map((s) => {
-                  const rem = getSupplierRemainingDebt(state, s.id);
+                {state.streetObjects.map((s) => {
+                  const rem = getStreetObjectRemainingDebt(state, s.id);
                   return (
                     <Card key={s.id} className="p-4">
                       <div className="flex items-start justify-between gap-3">
@@ -1361,7 +1361,7 @@ export function Suppliers() {
                               rem > 1e-6 ? 'font-bold text-amber-800 dark:text-amber-200' : 'text-slate-400'
                             }`}
                           >
-                            {t.suppDebtColRemaining}: {rem > 1e-6 ? `${formatNumber(rem)} so'm` : '—'}
+                            {t.streetDebtColRemaining}: {rem > 1e-6 ? `${formatNumber(rem)} so'm` : '—'}
                           </p>
                         </div>
                         <Button
@@ -1372,7 +1372,7 @@ export function Suppliers() {
                           disabled={rem <= 1e-6}
                           onClick={() => openDebtRepay(s.id)}
                         >
-                          {t.suppDebtPayBtn}
+                          {t.streetDebtPayBtn}
                         </Button>
                       </div>
                     </Card>
@@ -1384,26 +1384,26 @@ export function Suppliers() {
 
           <Card className="hidden overflow-hidden md:block">
             <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-white">{t.suppDebtRepayHistory}</h3>
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-white">{t.streetDebtRepayHistory}</h3>
             </div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t.suppDebtRepayColDate}</TableHead>
-                  <TableHead>{t.suppDebtRepayColSupplier}</TableHead>
-                  <TableHead className="text-right">{t.suppDebtRepayColAmount}</TableHead>
+                  <TableHead>{t.streetDebtRepayColDate}</TableHead>
+                  <TableHead>{t.streetDebtRepayColSupplier}</TableHead>
+                  <TableHead className="text-right">{t.streetDebtRepayColAmount}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedDebtRepayments.length === 0 ? (
-                  <TableEmpty colSpan={3} message={t.suppHistoryNoData} />
+                  <TableEmpty colSpan={3} message={t.streetHistoryNoData} />
                 ) : (
                   sortedDebtRepayments.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
                         {formatDate(r.date)}
                       </TableCell>
-                      <TableCell className="font-medium text-slate-800 dark:text-white">{r.supplierName}</TableCell>
+                      <TableCell className="font-medium text-slate-800 dark:text-white">{r.streetObjectName}</TableCell>
                       <TableCell className="nums text-right font-semibold text-emerald-700 dark:text-emerald-300">
                         {formatNumber(r.amount)} so'm
                       </TableCell>
@@ -1415,13 +1415,13 @@ export function Suppliers() {
           </Card>
 
           <div className="space-y-3 md:hidden">
-            <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.suppDebtRepayHistory}</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.streetDebtRepayHistory}</p>
             {sortedDebtRepayments.length === 0 ? (
-              <Card className="p-8 text-center text-sm text-slate-400">{t.suppHistoryNoData}</Card>
+              <Card className="p-8 text-center text-sm text-slate-400">{t.streetHistoryNoData}</Card>
             ) : (
               sortedDebtRepayments.map((r) => (
                 <Card key={r.id} className="p-4">
-                  <p className="text-sm font-medium text-slate-800 dark:text-white">{r.supplierName}</p>
+                  <p className="text-sm font-medium text-slate-800 dark:text-white">{r.streetObjectName}</p>
                   <p className="mt-1 text-[11px] text-slate-500">{formatDate(r.date)}</p>
                   <p className="mt-2 nums text-base font-bold text-emerald-700 dark:text-emerald-300">
                     {formatNumber(r.amount)} so'm
@@ -1437,12 +1437,12 @@ export function Suppliers() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? t.suppEdit : t.suppAdd}</DialogTitle>
+            <DialogTitle>{editing ? t.streetEdit : t.streetAdd}</DialogTitle>
             <DialogDescription />
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label>{t.suppName} *</Label>
+              <Label>{t.streetName} *</Label>
               <Input
                 value={form.fullName}
                 onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
@@ -1451,7 +1451,7 @@ export function Suppliers() {
               />
             </div>
             <div>
-              <Label>{t.suppPhone} *</Label>
+              <Label>{t.streetPhone} *</Label>
               <Input
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
@@ -1459,7 +1459,7 @@ export function Suppliers() {
               />
             </div>
             <div>
-              <Label>{t.suppAddress}</Label>
+              <Label>{t.streetAddress}</Label>
               <Input
                 value={form.address}
                 onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
@@ -1496,29 +1496,29 @@ export function Suppliers() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>{t.suppPurchaseTitle}</DialogTitle>
+            <DialogTitle>{t.streetPurchaseTitle}</DialogTitle>
             <DialogDescription className="space-y-2 text-pretty">
-              {purchaseSelectedSupplier ? (
+              {purchaseSelectedStreetObject ? (
                 <span className="font-medium text-slate-800 dark:text-slate-100">
-                  {purchaseSelectedSupplier.fullName}
+                  {purchaseSelectedStreetObject.fullName}
                 </span>
               ) : null}
-              <span className="block">{t.suppPurchaseDesc}</span>
-              <span className="block text-slate-600 dark:text-slate-300">{t.suppPurchaseParentNote}</span>
+              <span className="block">{t.streetPurchaseDesc}</span>
+              <span className="block text-slate-600 dark:text-slate-300">{t.streetPurchaseParentNote}</span>
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handlePurchaseSubmit} className="space-y-4">
             <div>
-              <Label>{t.suppPurchasePickSupplier} *</Label>
+              <Label>{t.streetPurchasePickSupplier} *</Label>
               <Select
-                value={purchaseForm.supplierId || undefined}
-                onValueChange={(v) => setPurchaseForm((f) => ({ ...f, supplierId: v }))}
+                value={purchaseForm.streetObjectId || undefined}
+                onValueChange={(v) => setPurchaseForm((f) => ({ ...f, streetObjectId: v }))}
               >
                 <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder={t.suppPurchasePickSupplier} />
+                  <SelectValue placeholder={t.streetPurchasePickSupplier} />
                 </SelectTrigger>
                 <SelectContent>
-                  {state.suppliers.map((s) => (
+                  {state.streetObjects.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.fullName}
                     </SelectItem>
@@ -1538,10 +1538,10 @@ export function Suppliers() {
             </div>
 
             {warehousePurchaseOptions.length === 0 ? (
-              <p className="text-sm text-amber-700 dark:text-amber-300">{t.suppNoParentProducts}</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300">{t.streetNoParentProducts}</p>
             ) : (
               <div className="space-y-2">
-                <Label>{t.suppPurchaseLinesTitle}</Label>
+                <Label>{t.streetPurchaseLinesTitle}</Label>
                 {(() => {
                   const editingLine =
                     purchaseForm.lines.find((l) => l.key === purchaseEditingKey) ??
@@ -1621,7 +1621,7 @@ export function Suppliers() {
 
                       {editingLine && (
                         <div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50/40 p-3 dark:border-sky-900/50 dark:bg-sky-950/20">
-                          <Label className="text-xs">{t.suppPurchasePickParent} *</Label>
+                          <Label className="text-xs">{t.streetPurchasePickParent} *</Label>
                           <Select
                             value={editingLine.warehouseItemId || undefined}
                             onValueChange={(v) => {
@@ -1633,7 +1633,7 @@ export function Suppliers() {
                             }}
                           >
                             <SelectTrigger className="rounded-xl">
-                              <SelectValue placeholder={t.suppPurchasePickParent} />
+                              <SelectValue placeholder={t.streetPurchasePickParent} />
                             </SelectTrigger>
                             <SelectContent className="max-h-72">
                               {warehousePurchaseOptions.map((opt) => (
@@ -1644,7 +1644,7 @@ export function Suppliers() {
                             </SelectContent>
                           </Select>
                           {editW && (
-                            <p className="text-[10px] text-slate-500">{t.suppPurchaseSessionQtyHint}</p>
+                            <p className="text-[10px] text-slate-500">{t.streetPurchaseSessionQtyHint}</p>
                           )}
                           <div className="grid gap-2 sm:grid-cols-2">
                             <CumulativeQuantityField
@@ -1653,17 +1653,17 @@ export function Suppliers() {
                               qtyParts={editingLine.qtyParts}
                               unit={editW?.unit ?? 'kg'}
                               unitLabel={editW?.unit === 'pcs' ? t.unitPcs : 'kg'}
-                              runningTotalLabel={t.suppQtyRunningTotal}
-                              addAriaLabel={t.suppQtyAddPart}
+                              runningTotalLabel={t.streetQtyRunningTotal}
+                              addAriaLabel={t.streetQtyAddPart}
                               placeholder={editW?.unit === 'kg' ? '2,3' : '5'}
-                              pcsHint={editW?.unit === 'pcs' ? t.suppPurchasePcsWhole : undefined}
+                              pcsHint={editW?.unit === 'pcs' ? t.streetPurchasePcsWhole : undefined}
                               onQuantityChange={(value) =>
                                 updatePurchaseLine(editingLine.key, { quantity: value })
                               }
                               onAddPart={() => appendPurchaseQtyPart(editingLine.key)}
                             />
                             <div>
-                              <Label className="text-xs">{t.suppPricePerUnit}</Label>
+                              <Label className="text-xs">{t.streetPricePerUnit}</Label>
                               <Input
                                 value={editingLine.pricePerUnit}
                                 onChange={(e) =>
@@ -1677,7 +1677,7 @@ export function Suppliers() {
                             </div>
                           </div>
                           <p className="text-xs text-slate-600 dark:text-slate-300">
-                            {t.suppLineTotal}:{' '}
+                            {t.streetLineTotal}:{' '}
                             <span className="nums font-semibold">
                               {editTotal != null ? `${formatNumber(editTotal)} so'm` : '—'}
                             </span>
@@ -1693,7 +1693,7 @@ export function Suppliers() {
                         onClick={commitPurchaseLineAndAddNext}
                       >
                         <Plus size={14} className="mr-1.5" />
-                        {t.suppAddPurchaseLine}
+                        {t.streetAddPurchaseLine}
                       </Button>
                     </>
                   );
@@ -1704,7 +1704,7 @@ export function Suppliers() {
             {purchaseByProductSummary.length > 0 && (
               <div className="rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2.5 dark:border-indigo-900/50 dark:bg-indigo-950/30">
                 <p className="text-xs font-medium text-indigo-800 dark:text-indigo-200">
-                  {t.suppByProductSummary}
+                  {t.streetByProductSummary}
                 </p>
                 <ul className="mt-2 space-y-1.5 text-sm">
                   {purchaseByProductSummary.map((g) => (
@@ -1724,14 +1724,14 @@ export function Suppliers() {
             )}
 
             <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500">{t.suppPurchaseGrandTotal}</p>
+              <p className="text-xs text-slate-500">{t.streetPurchaseGrandTotal}</p>
               <p className="nums text-lg font-semibold text-slate-900 dark:text-slate-100">
                 {purchaseOrderTotal != null ? `${formatNumber(purchaseOrderTotal)} so'm` : '—'}
               </p>
             </div>
             <div>
               <Label>
-                {t.suppPaidAmount}
+                {t.streetPaidAmount}
                 {purchaseOrderTotal != null ? ' *' : ''}
               </Label>
               <Input
@@ -1744,7 +1744,7 @@ export function Suppliers() {
               />
               {purchaseForm.onCredit && purchaseOrderTotal != null && debtPreviewSo != null && (
                 <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-200">
-                  {t.suppDebtPreview}: {formatNumber(debtPreviewSo)} so'm
+                  {t.streetDebtPreview}: {formatNumber(debtPreviewSo)} so'm
                 </p>
               )}
             </div>
@@ -1755,7 +1755,7 @@ export function Suppliers() {
                 checked={purchaseForm.onCredit}
                 onChange={(e) => setPurchaseForm((f) => ({ ...f, onCredit: e.target.checked }))}
               />
-              <span className="text-sm leading-snug text-slate-700 dark:text-slate-300">{t.suppOnCredit}</span>
+              <span className="text-sm leading-snug text-slate-700 dark:text-slate-300">{t.streetOnCredit}</span>
             </label>
             <div>
               <Label>{t.notes}</Label>
@@ -1769,7 +1769,7 @@ export function Suppliers() {
               <Button type="button" variant="outline" onClick={() => setPurchaseOpen(false)}>
                 {t.cancel}
               </Button>
-              <Button type="submit">{t.suppPurchaseSubmit}</Button>
+              <Button type="submit">{t.streetPurchaseSubmit}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -1780,7 +1780,7 @@ export function Suppliers() {
         onOpenChange={(open) => {
           setDebtRepayOpen(open);
           if (!open) {
-            setDebtRepaySupplierId('');
+            setDebtRepayStreetObjectId('');
             setDebtRepayAmount('');
             setDebtRepayDate(TODAY);
             setDebtRepayNotes('');
@@ -1789,13 +1789,13 @@ export function Suppliers() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t.suppDebtPayDialogTitle}</DialogTitle>
+            <DialogTitle>{t.streetDebtPayDialogTitle}</DialogTitle>
             <DialogDescription className="space-y-2">
               <span className="block font-medium text-slate-800 dark:text-slate-100">
-                {state.suppliers.find((s) => s.id === debtRepaySupplierId)?.fullName ?? ''}
+                {state.streetObjects.find((s) => s.id === debtRepayStreetObjectId)?.fullName ?? ''}
               </span>
               <span className="block text-sm text-slate-600 dark:text-slate-300">
-                {t.suppDebtColRemaining}:{' '}
+                {t.streetDebtColRemaining}:{' '}
                 <span className="nums font-semibold text-amber-800 dark:text-amber-200">
                   {formatNumber(debtRepayRemaining)} so'm
                 </span>
@@ -1804,7 +1804,7 @@ export function Suppliers() {
           </DialogHeader>
           <form onSubmit={handleDebtRepaySubmit} className="space-y-4">
             <div>
-              <Label>{t.suppDebtPayAmount} *</Label>
+              <Label>{t.streetDebtPayAmount} *</Label>
               <Input
                 value={debtRepayAmount}
                 onChange={(e) => setDebtRepayAmount(e.target.value)}
@@ -1814,7 +1814,7 @@ export function Suppliers() {
               />
             </div>
             <div>
-              <Label>{t.suppDebtPayDate}</Label>
+              <Label>{t.streetDebtPayDate}</Label>
               <Input
                 type="date"
                 value={debtRepayDate}
@@ -1823,7 +1823,7 @@ export function Suppliers() {
               />
             </div>
             <div>
-              <Label>{t.suppDebtPayNotes}</Label>
+              <Label>{t.streetDebtPayNotes}</Label>
               <Input
                 value={debtRepayNotes}
                 onChange={(e) => setDebtRepayNotes(e.target.value)}
@@ -1834,42 +1834,42 @@ export function Suppliers() {
               <Button type="button" variant="outline" onClick={() => setDebtRepayOpen(false)}>
                 {t.cancel}
               </Button>
-              <Button type="submit">{t.suppDebtPaySubmit}</Button>
+              <Button type="submit">{t.streetDebtPaySubmit}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       <Dialog
-        open={supplierDetailOpen}
+        open={streetObjectDetailOpen}
         onOpenChange={(open) => {
-          setSupplierDetailOpen(open);
-          if (!open) setSupplierDetail(null);
+          setstreetObjectDetailOpen(open);
+          if (!open) setstreetObjectDetail(null);
         }}
       >
         <DialogContent className="max-h-[90vh] max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{supplierDetail?.fullName ?? ''}</DialogTitle>
-            <DialogDescription>{t.suppSupplierPurchasesDialogDesc}</DialogDescription>
+            <DialogTitle>{streetObjectDetail?.fullName ?? ''}</DialogTitle>
+            <DialogDescription>{t.streetSupplierPurchasesDialogDesc}</DialogDescription>
           </DialogHeader>
 
           <div className="hidden max-h-[min(55vh,28rem)] overflow-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t.suppHistoryColDate}</TableHead>
-                  <TableHead>{t.suppHistoryColProducts}</TableHead>
-                  <TableHead className="text-right">{t.suppHistoryColTotal}</TableHead>
-                  <TableHead className="text-right">{t.suppHistoryColPaid}</TableHead>
-                  <TableHead className="text-right">{t.suppHistoryColDebt}</TableHead>
+                  <TableHead>{t.streetHistoryColDate}</TableHead>
+                  <TableHead>{t.streetHistoryColProducts}</TableHead>
+                  <TableHead className="text-right">{t.streetHistoryColTotal}</TableHead>
+                  <TableHead className="text-right">{t.streetHistoryColPaid}</TableHead>
+                  <TableHead className="text-right">{t.streetHistoryColDebt}</TableHead>
                   <TableHead className="w-[3rem]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {supplierDetailPurchaseGroups.length === 0 ? (
-                  <TableEmpty colSpan={6} message={t.suppHistoryNoData} />
+                {streetObjectDetailPurchaseGroups.length === 0 ? (
+                  <TableEmpty colSpan={6} message={t.streetHistoryNoData} />
                 ) : (
-                  supplierDetailPurchaseGroups.map((g) => {
+                  streetObjectDetailPurchaseGroups.map((g) => {
                     const { totalAmount, paid, debt } = batchMoneyTotals(g);
                     return (
                       <TableRow key={g.batchId}>
@@ -1879,7 +1879,7 @@ export function Suppliers() {
                         <TableCell className="max-w-[20rem]">
                           <p className="text-sm font-medium leading-snug">{summarizeBatchProducts(g.lines)}</p>
                           <p className="text-[10px] text-slate-400">
-                            {g.lines.length} {t.suppHistoryProductCount}
+                            {g.lines.length} {t.streetHistoryProductCount}
                           </p>
                         </TableCell>
                         <TableCell className="nums text-right font-semibold">
@@ -1911,10 +1911,10 @@ export function Suppliers() {
           </div>
 
           <div className="max-h-[min(50vh,24rem)] space-y-3 overflow-y-auto md:hidden">
-            {supplierDetailPurchaseGroups.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-400">{t.suppHistoryNoData}</p>
+            {streetObjectDetailPurchaseGroups.length === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-400">{t.streetHistoryNoData}</p>
             ) : (
-              supplierDetailPurchaseGroups.map((g) => {
+              streetObjectDetailPurchaseGroups.map((g) => {
                 const { totalAmount, paid, debt } = batchMoneyTotals(g);
                 return (
                   <Card key={g.batchId} className="p-4">
@@ -1935,7 +1935,7 @@ export function Suppliers() {
                       {totalAmount > 0 ? `${formatNumber(totalAmount)} so'm` : '—'}
                     </p>
                     {debt > 1e-6 && (
-                      <p className="text-xs text-amber-700">{t.suppHistoryColDebt}: {formatNumber(debt)} so'm</p>
+                      <p className="text-xs text-amber-700">{t.streetHistoryColDebt}: {formatNumber(debt)} so'm</p>
                     )}
                   </Card>
                 );
@@ -1944,29 +1944,29 @@ export function Suppliers() {
           </div>
 
           <DialogFooter className="flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setSupplierDetailOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setstreetObjectDetailOpen(false)}>
               {t.cancel}
             </Button>
-            {supplierDetail ? (
+            {streetObjectDetail ? (
               <Button
                 type="button"
                 variant="secondary"
                 className="gap-1.5"
                 onClick={() => {
-                  setSupplierDetailOpen(false);
+                  setstreetObjectDetailOpen(false);
                   setMainTab('history');
-                  setHistorySupplierId(supplierDetail.id);
+                  sethistoryStreetObjectId(streetObjectDetail.id);
                 }}
               >
                 <History size={16} />
-                {t.suppOpenInHistoryTab}
+                {t.streetOpenInHistoryTab}
               </Button>
             ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <SupplierPurchaseEditDialog
+      <StreetObjectPurchaseEditDialog
         batch={historyEditBatch}
         open={Boolean(historyEditBatch)}
         onOpenChange={(o) => {
@@ -1980,7 +1980,7 @@ export function Suppliers() {
       <AlertDialog open={Boolean(confirmDelete)} onOpenChange={() => setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t.suppDeleteConfirm}</AlertDialogTitle>
+            <AlertDialogTitle>{t.streetDeleteConfirm}</AlertDialogTitle>
             <AlertDialogDescription>{confirmDelete?.fullName}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

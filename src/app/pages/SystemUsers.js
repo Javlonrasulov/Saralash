@@ -17,6 +17,7 @@ const ROUTE_KEYS = [
     'sales',
     'customers',
     'suppliers',
+    'streetObjects',
     'expenses',
 ];
 const EMPTY_FORM = {
@@ -99,6 +100,7 @@ export function SystemUsers() {
         sales: t.navSales,
         customers: t.navCustomers,
         suppliers: t.navSuppliers,
+        streetObjects: t.navStreetObjects,
         expenses: t.navExpenses,
     }), [t]);
     const resetForm = () => {

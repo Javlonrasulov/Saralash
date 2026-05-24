@@ -28,6 +28,7 @@ const ALL_ROUTES: SessionUser['allowedRoutes'] = [
   'sales',
   'customers',
   'suppliers',
+  'streetObjects',
   'expenses',
 ];
 

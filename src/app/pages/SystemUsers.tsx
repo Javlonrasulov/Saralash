@@ -34,6 +34,7 @@ const ROUTE_KEYS: AppRouteKey[] = [
   'sales',
   'customers',
   'suppliers',
+  'streetObjects',
   'expenses',
 ];
 
@@ -122,6 +123,7 @@ export function SystemUsers() {
         sales: t.navSales,
         customers: t.navCustomers,
         suppliers: t.navSuppliers,
+        streetObjects: t.navStreetObjects,
         expenses: t.navExpenses,
       }) satisfies Record<AppRouteKey, string>,
     [t],

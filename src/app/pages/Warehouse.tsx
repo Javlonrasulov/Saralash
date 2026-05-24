@@ -104,6 +104,7 @@ interface ProductFormState {
   initialQty: string;
   incomeDate: string;
   purchasePrice: string;
+  streetPurchasePrice: string;
   salePrice: string;
   notes: string;
 }
@@ -116,6 +117,7 @@ const EMPTY_PRODUCT: ProductFormState = {
   initialQty: '',
   incomeDate: TODAY,
   purchasePrice: '',
+  streetPurchasePrice: '',
   salePrice: '',
   notes: '',
 };
@@ -170,6 +172,11 @@ function ProductDialog({
             editing.purchasePricePerUnit != null && Number.isFinite(editing.purchasePricePerUnit)
               ? String(editing.purchasePricePerUnit)
               : '',
+          streetPurchasePrice:
+            editing.streetPurchasePricePerUnit != null &&
+            Number.isFinite(editing.streetPurchasePricePerUnit)
+              ? String(editing.streetPurchasePricePerUnit)
+              : '',
           salePrice:
             editing.salePricePerUnit != null && Number.isFinite(editing.salePricePerUnit)
               ? String(editing.salePricePerUnit)
@@ -202,8 +209,9 @@ function ProductDialog({
       return;
     }
     const parsedPurchase = parseOptionalMoney(form.purchasePrice);
+    const parsedStreetPurchase = parseOptionalMoney(form.streetPurchasePrice);
     const parsedSale = parseOptionalMoney(form.salePrice);
-    if (!parsedPurchase.ok || !parsedSale.ok) {
+    if (!parsedPurchase.ok || !parsedStreetPurchase.ok || !parsedSale.ok) {
       toast.error(t.whValidateOptionalPrice);
       return;
     }
@@ -234,6 +242,7 @@ function ProductDialog({
           incomeDate: form.incomeDate,
           notes: form.notes.trim() || undefined,
           purchasePricePerUnit: parsedPurchase.value,
+          streetPurchasePricePerUnit: parsedStreetPurchase.value,
           salePricePerUnit: parsedSale.value,
         });
         toast.success(t.save);
@@ -286,6 +295,7 @@ function ProductDialog({
           incomeDate: form.incomeDate,
           notes: form.notes.trim() || undefined,
           purchasePricePerUnit: parsedPurchase.value,
+          streetPurchasePricePerUnit: parsedStreetPurchase.value,
           salePricePerUnit: parsedSale.value,
         };
 
@@ -337,6 +347,7 @@ function ProductDialog({
           source: 'EXTERNAL',
           parentWarehouseId: null,
           purchasePricePerUnit: parsedPurchase.value,
+          streetPurchasePricePerUnit: parsedStreetPurchase.value,
           salePricePerUnit: parsedSale.value,
         },
         parsedSplits,
@@ -489,6 +500,16 @@ function ProductDialog({
               />
             </div>
             <div>
+              <Label>{t.whStreetPurchasePricePerUnit}</Label>
+              <Input
+                value={form.streetPurchasePrice}
+                onChange={(e) => setForm((f) => ({ ...f, streetPurchasePrice: e.target.value }))}
+                placeholder="0"
+                inputMode="decimal"
+                className="mt-1.5"
+              />
+            </div>
+            <div className="sm:col-span-2">
               <Label>{t.whSalePricePerUnit}</Label>
               <Input
                 value={form.salePrice}

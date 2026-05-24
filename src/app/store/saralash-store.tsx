@@ -96,7 +96,7 @@ export interface Supplier {
   createdAt: string;
 }
 
-/** Ko‘cha obyektidan xarid qaydi (ombor bilan bog‘langan, o‘chirilsa ham saqlanadi). */
+/** Baza (ta’minotchi)dan xarid qaydi (ombor bilan bog‘langan, o‘chirilsa ham saqlanadi). */
 export interface SupplierPurchaseRecord {
   id: string;
   supplierId: string | null;
@@ -189,12 +189,120 @@ function migrateSupplierPurchaseBatchIds(
   });
 }
 
-/** Ko‘cha obyektiga qarzdan to‘lov (qarz qoldig‘ini kamaytirish). */
+/** Bazaga qarzdan to‘lov (qarz qoldig‘ini kamaytirish). */
 export interface SupplierDebtRepayment {
   id: string;
   supplierId: string;
   /** To‘lov paytidagi nom. */
   supplierName: string;
+  amount: number;
+  date: string;
+  notes?: string | null;
+  createdAt: string;
+}
+
+/** Ko‘cha obyekti (manzil / nuqta). */
+export interface StreetObject {
+  id: string;
+  fullName: string;
+  phone: string;
+  address: string;
+  notes?: string;
+  createdAt: string;
+}
+
+/** Ko‘cha obyektidan xarid qaydi. */
+export interface StreetPurchaseRecord {
+  id: string;
+  streetObjectId: string | null;
+  streetObjectName: string;
+  warehouseItemId: string;
+  incomeDate: string;
+  productName: string;
+  category: CategoryKey;
+  unit: 'kg' | 'pcs';
+  quantity: number;
+  pricePerUnit?: number | null;
+  totalAmount?: number | null;
+  paidAmount?: number | null;
+  streetObjectDebtAmount?: number | null;
+  onCredit?: boolean;
+  notes?: string | null;
+  purchaseBatchId?: string | null;
+  createdAt: string;
+}
+
+export interface StreetPurchaseHistoryGroup {
+  batchId: string;
+  streetObjectId: string | null;
+  streetObjectName: string;
+  incomeDate: string;
+  notes: string | null;
+  createdAt: string;
+  lines: StreetPurchaseRecord[];
+}
+
+export function getStreetPurchaseBatchKey(p: StreetPurchaseRecord): string {
+  if (p.purchaseBatchId) return p.purchaseBatchId;
+  const bucket = Math.floor(new Date(p.createdAt).getTime() / 5000);
+  return `legacy:${p.streetObjectId ?? '_'}:${p.incomeDate}:${(p.notes ?? '').trim()}:${bucket}`;
+}
+
+export function groupStreetPurchasesForHistory(
+  purchases: StreetPurchaseRecord[],
+): StreetPurchaseHistoryGroup[] {
+  const map = new Map<string, StreetPurchaseHistoryGroup>();
+  for (const p of purchases) {
+    const batchId = getStreetPurchaseBatchKey(p);
+    let g = map.get(batchId);
+    if (!g) {
+      g = {
+        batchId,
+        streetObjectId: p.streetObjectId,
+        streetObjectName: p.streetObjectName,
+        incomeDate: p.incomeDate,
+        notes: p.notes ?? null,
+        createdAt: p.createdAt,
+        lines: [],
+      };
+      map.set(batchId, g);
+    }
+    g.lines.push(p);
+    if (p.createdAt < g.createdAt) g.createdAt = p.createdAt;
+  }
+  for (const g of map.values()) {
+    g.lines.sort((a, b) =>
+      a.productName.localeCompare(b.productName, undefined, { sensitivity: 'base' }),
+    );
+  }
+  return [...map.values()].sort(
+    (a, b) =>
+      b.incomeDate.localeCompare(a.incomeDate) || b.createdAt.localeCompare(a.createdAt),
+  );
+}
+
+function migrateStreetPurchaseBatchIds(
+  purchases: StreetPurchaseRecord[],
+): StreetPurchaseRecord[] {
+  if (!purchases.some((p) => !p.purchaseBatchId)) return purchases;
+  const legacyToId = new Map<string, string>();
+  return purchases.map((p) => {
+    if (p.purchaseBatchId) return p;
+    const lk = getStreetPurchaseBatchKey(p);
+    let bid = legacyToId.get(lk);
+    if (!bid) {
+      bid = uid('stpb');
+      legacyToId.set(lk, bid);
+    }
+    return { ...p, purchaseBatchId: bid };
+  });
+}
+
+/** Ko‘cha obyektiga qarzdan to‘lov. */
+export interface StreetDebtRepayment {
+  id: string;
+  streetObjectId: string;
+  streetObjectName: string;
   amount: number;
   date: string;
   notes?: string | null;
@@ -235,8 +343,10 @@ export interface WarehouseItem {
    */
   parentWarehouseId?: string | null;
   notes?: string;
-  /** Sotib olish: 1 kg yoki 1 dona narxi (so'm), ixtiyoriy */
+  /** Baza olish: 1 kg yoki 1 dona sotib olish narxi (so'm), ixtiyoriy */
   purchasePricePerUnit?: number | null;
+  /** Ko‘cha obyektlari olish: 1 kg yoki 1 dona sotib olish narxi (so'm), ixtiyoriy */
+  streetPurchasePricePerUnit?: number | null;
   /** Tavsiya / reja sotish narxi (so'm), ixtiyoriy */
   salePricePerUnit?: number | null;
   /** Ro‘yxat ikonkasi: paper | plastic | glass | metal | copper | cardboard | other */
@@ -269,6 +379,8 @@ export interface WarehouseOutcome {
   posOrderId?: string | null;
   /** Shu buyurtma bo'yicha mijoz to'lagan summa (barcha qatorlarda bir xil) */
   orderPaidTotal?: number | null;
+  /** Shu buyurtma bo'yicha to'lov usuli: naqd yoki plastik (karta) */
+  orderPaymentMethod?: PosPaymentMethod | null;
   /** kg bola qatorida sotuv: boladan/otadan yechilgan ulush (buyurtmani qayta yozish uchun) */
   soldFromChildKg?: number | null;
   soldFromParentKg?: number | null;
@@ -279,6 +391,15 @@ export interface PosCheckoutLine {
   warehouseItemId: string;
   quantity: number;
   pricePerUnit: number;
+}
+
+/** POS sotuvda to‘lov usuli */
+export type PosPaymentMethod = 'CASH' | 'CARD';
+
+export function resolveOrderPaymentMethod(
+  outcome: Pick<WarehouseOutcome, 'orderPaymentMethod'> | null | undefined,
+): PosPaymentMethod {
+  return outcome?.orderPaymentMethod === 'CARD' ? 'CARD' : 'CASH';
 }
 
 /**
@@ -326,10 +447,13 @@ const DEFAULT_EXPENSE_CATEGORY_NAMES = [
 export interface SaralashState {
   customers: Customer[];
   suppliers: Supplier[];
-  /** Ko‘cha obyektidan zakup tarixlari (yangi xaridlar shu yerga ham yoziladi). */
+  /** Baza olish zakup tarixlari. */
   supplierPurchases: SupplierPurchaseRecord[];
-  /** Ko‘cha obyektlari qarzlaridan to‘lovlar. */
+  /** Bazaga qarz to‘lovlari. */
   supplierDebtRepayments: SupplierDebtRepayment[];
+  streetObjects: StreetObject[];
+  streetPurchases: StreetPurchaseRecord[];
+  streetDebtRepayments: StreetDebtRepayment[];
   /** Mijoz qarzlaridan kelgan to‘lovlar. */
   customerDebtRepayments: CustomerDebtRepayment[];
   intakes: Intake[];
@@ -401,6 +525,59 @@ type Action =
       };
     }
   | { type: 'SUPPLIER_DEBT_REPAYMENT_ADD'; payload: SupplierDebtRepayment }
+  | { type: 'STREET_OBJECT_ADD'; payload: StreetObject }
+  | { type: 'STREET_OBJECT_UPDATE'; payload: StreetObject }
+  | { type: 'STREET_OBJECT_DELETE'; payload: { id: string } }
+  | { type: 'STREET_PURCHASE_ADD'; payload: StreetPurchaseRecord }
+  | {
+      type: 'STREET_PURCHASE_BATCH';
+      payload: {
+        streetObjectId: string;
+        incomeDate: string;
+        notes?: string;
+        onCredit: boolean;
+        paidAmount?: number | null;
+        lines: Array<{
+          warehouseItemId: string;
+          quantity: number;
+          streetPurchasePricePerUnit?: number | null;
+        }>;
+      };
+    }
+  | { type: 'STREET_PURCHASE_DELETE'; payload: { id: string } }
+  | { type: 'STREET_PURCHASE_BATCH_DELETE'; payload: { batchId: string } }
+  | {
+      type: 'STREET_PURCHASE_BATCH_REPLACE';
+      payload: {
+        batchId: string;
+        streetObjectId: string;
+        incomeDate: string;
+        notes?: string;
+        onCredit: boolean;
+        paidAmount?: number | null;
+        lines: Array<{
+          warehouseItemId: string;
+          quantity: number;
+          streetPurchasePricePerUnit?: number | null;
+        }>;
+      };
+    }
+  | {
+      type: 'STREET_PURCHASE_UPDATE';
+      payload: {
+        id: string;
+        streetObjectId: string | null;
+        streetObjectName: string;
+        warehouseItemId: string;
+        quantity: number;
+        incomeDate: string;
+        notes?: string;
+        streetPurchasePricePerUnit?: number | null;
+        paidAmount?: number | null;
+        onCredit: boolean;
+      };
+    }
+  | { type: 'STREET_DEBT_REPAYMENT_ADD'; payload: StreetDebtRepayment }
   | { type: 'INTAKE_ADD'; payload: Intake }
   | { type: 'INTAKE_DELETE'; payload: { id: string } }
   | { type: 'SORT_DISTRIBUTE'; payload: { intakeId: string; rows: Array<{ category: CategoryKey; weightKg: number }> } }
@@ -431,6 +608,7 @@ type Action =
         customerName: string | null;
         /** Naqd (yoki karta) — jami chekdan kam bo‘lsa, farq `balanceDue` ga yoziladi (faqat mijoz tanlangan bo‘lsa). */
         paidAmount: number;
+        paymentMethod: PosPaymentMethod;
         lines: PosCheckoutLine[];
       };
     }
@@ -442,6 +620,7 @@ type Action =
         customerId: string;
         customerName: string | null;
         paidAmount: number;
+        paymentMethod: PosPaymentMethod;
         lines: PosCheckoutLine[];
       };
     }
@@ -461,6 +640,9 @@ const INITIAL_STATE: SaralashState = {
   suppliers: [],
   supplierPurchases: [],
   supplierDebtRepayments: [],
+  streetObjects: [],
+  streetPurchases: [],
+  streetDebtRepayments: [],
   customerDebtRepayments: [],
   intakes: [],
   sortedMaterials: [],
@@ -504,6 +686,7 @@ function warehouseChildFromParent(
     parentWarehouseId: parent.id,
     notes: undefined,
     purchasePricePerUnit: parent.purchasePricePerUnit ?? null,
+    streetPurchasePricePerUnit: parent.streetPurchasePricePerUnit ?? null,
     salePricePerUnit: parent.salePricePerUnit ?? null,
     productIconKey: parent.productIconKey ?? null,
     status: 'IN_STOCK',
@@ -854,7 +1037,7 @@ function buildSupplierPurchaseUpdate(
     currentQty: newQty,
     initialQty: newInitial,
     incomeDate: input.incomeDate,
-    purchasePricePerUnit: hasPositive ? p : null,
+    purchasePricePerUnit: hasPositive ? p : (item.purchasePricePerUnit ?? null),
     supplierId: supplier.id,
     supplierName: supplier.fullName,
     notes: mergedNotes,
@@ -882,6 +1065,205 @@ function buildSupplierPurchaseUpdate(
     totalAmount: lineTotal,
     paidAmount: lineTotal != null ? paid : null,
     supplierDebtAmount: debt,
+    onCredit: onCreditFlag,
+    notes: input.notes?.trim() || null,
+    purchaseBatchId: input.purchaseBatchId ?? null,
+    createdAt: preserve?.createdAt ?? input.batchCreatedAt ?? new Date().toISOString(),
+  };
+
+  const nextWarehouseItems = warehouseItems.map((w) => (w.id === updated.id ? updated : w));
+  return { warehouseItems: nextWarehouseItems, record };
+}
+
+function applyRepaymentToStreetPurchases(
+  purchases: StreetPurchaseRecord[],
+  repayment: Pick<StreetDebtRepayment, 'streetObjectId' | 'amount'>,
+): StreetPurchaseRecord[] {
+  let left = repayment.amount;
+  if (!Number.isFinite(left) || left <= 1e-9) return purchases;
+
+  const indices = purchases
+    .map((p, i) => ({ p, i }))
+    .filter(
+      ({ p }) =>
+        p.streetObjectId === repayment.streetObjectId &&
+        p.streetObjectDebtAmount != null &&
+        Number.isFinite(p.streetObjectDebtAmount) &&
+        p.streetObjectDebtAmount > 1e-9,
+    )
+    .sort((a, b) => {
+      const c = a.p.incomeDate.localeCompare(b.p.incomeDate);
+      if (c !== 0) return c;
+      return String(a.p.createdAt).localeCompare(String(b.p.createdAt));
+    })
+    .map((x) => x.i);
+
+  if (indices.length === 0) return purchases;
+
+  const next = purchases.map((p) => ({ ...p }));
+  for (const idx of indices) {
+    if (left <= 1e-9) break;
+    const p = next[idx];
+    const d = p.streetObjectDebtAmount ?? 0;
+    if (d <= 1e-9) continue;
+    const take = Math.min(d, left);
+    const newDebt = d - take;
+    const nz = newDebt < 1e-6 ? 0 : newDebt;
+    const prevPaid =
+      p.paidAmount != null && Number.isFinite(p.paidAmount) && p.paidAmount >= 0 ? p.paidAmount : 0;
+    const lineTotal =
+      p.totalAmount != null && Number.isFinite(p.totalAmount) && p.totalAmount > 0 ? p.totalAmount : null;
+    const nextPaid = lineTotal != null ? Math.max(0, lineTotal - nz) : prevPaid + take;
+    next[idx] = {
+      ...p,
+      streetObjectDebtAmount: nz,
+      paidAmount: nextPaid,
+      onCredit: nz > 1e-6 ? p.onCredit : false,
+    };
+    left -= take;
+  }
+  return next;
+}
+
+function syncAllStreetPurchasesPaidFromTotals(purchases: StreetPurchaseRecord[]): StreetPurchaseRecord[] {
+  return purchases.map((p) => {
+    const T = p.totalAmount;
+    if (T == null || !Number.isFinite(T) || T <= 0) return p;
+    const D =
+      p.streetObjectDebtAmount != null && Number.isFinite(p.streetObjectDebtAmount)
+        ? Math.max(0, p.streetObjectDebtAmount)
+        : 0;
+    const correct = Math.max(0, T - D);
+    const prev = p.paidAmount != null && Number.isFinite(p.paidAmount) ? p.paidAmount : 0;
+    if (Math.abs(prev - correct) <= 1e-4 * Math.max(1, T)) return p;
+    return { ...p, paidAmount: correct };
+  });
+}
+
+function reconcileStreetPurchasesDebtsWithRepayments(
+  purchases: StreetPurchaseRecord[],
+  repayments: StreetDebtRepayment[],
+): StreetPurchaseRecord[] {
+  if (!repayments.length) return purchases;
+  const ordered = [...repayments].sort(
+    (a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt),
+  );
+  let next = purchases;
+  for (const r of ordered) {
+    next = applyRepaymentToStreetPurchases(next, r);
+  }
+  return next;
+}
+
+function reconcileStreetPurchasesAfterChange(
+  purchases: StreetPurchaseRecord[],
+  repayments: StreetDebtRepayment[],
+  streetObjectId: string | null,
+): StreetPurchaseRecord[] {
+  if (!streetObjectId) return purchases;
+  let next = purchases.map((p) => {
+    if (p.streetObjectId !== streetObjectId) return p;
+    const T = p.totalAmount;
+    if (T == null || !Number.isFinite(T) || T <= 0) {
+      return { ...p, streetObjectDebtAmount: null, onCredit: false };
+    }
+    const paid =
+      p.paidAmount != null && Number.isFinite(p.paidAmount) ? Math.max(0, p.paidAmount) : 0;
+    const debt = Math.max(0, T - paid);
+    return {
+      ...p,
+      streetObjectDebtAmount: debt,
+      onCredit: debt > 1e-6,
+      paidAmount: paid,
+    };
+  });
+  const ordered = [...repayments]
+    .filter((r) => r.streetObjectId === streetObjectId)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
+  for (const r of ordered) {
+    next = applyRepaymentToStreetPurchases(next, r);
+  }
+  return syncAllStreetPurchasesPaidFromTotals(next);
+}
+
+function buildStreetPurchaseUpdate(
+  streetObject: StreetObject,
+  warehouseItems: WarehouseItem[],
+  input: {
+    warehouseItemId: string;
+    quantity: number;
+    incomeDate: string;
+    notes?: string | null;
+    streetPurchasePricePerUnit?: number | null;
+    paidAmount?: number | null;
+    onCredit?: boolean;
+    recordStreetObjectId?: string | null;
+    recordStreetObjectName?: string;
+    purchaseBatchId?: string | null;
+    batchCreatedAt?: string;
+  },
+  preserve?: { id: string; createdAt: string },
+): { warehouseItems: WarehouseItem[]; record: StreetPurchaseRecord } | null {
+  const item = warehouseItems.find((w) => w.id === input.warehouseItemId);
+  if (!item) return null;
+
+  const qty = normalizeSupplierPurchaseQty(item, input.quantity);
+  if (qty == null) return null;
+
+  const p = input.streetPurchasePricePerUnit;
+  const hasPositive = p != null && Number.isFinite(p) && p > 0;
+  const lineTotal = hasPositive ? p * qty : null;
+  const paidRaw = input.paidAmount;
+  const paid =
+    paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
+  if (lineTotal != null) {
+    if (paid == null) return null;
+    if (input.onCredit) {
+      if (paid > lineTotal + 1e-6) return null;
+    } else if (Math.abs(paid - lineTotal) > 1e-4 * Math.max(1, lineTotal)) {
+      return null;
+    }
+  }
+  const debt =
+    lineTotal != null && paid != null ? Math.max(0, lineTotal - paid) : null;
+  const onCreditFlag = Boolean(input.onCredit && lineTotal != null && debt != null && debt > 1e-6);
+
+  const newQty = item.currentQty + qty;
+  const newInitial = item.initialQty + qty;
+  const mergedNotes = [item.notes?.trim(), input.notes?.trim()].filter(Boolean).join(' | ') || undefined;
+
+  const updated: WarehouseItem = {
+    ...item,
+    currentQty: newQty,
+    initialQty: newInitial,
+    incomeDate: input.incomeDate,
+    streetPurchasePricePerUnit: hasPositive ? p : item.streetPurchasePricePerUnit ?? null,
+    notes: mergedNotes,
+    status: newQty > 0 ? 'IN_STOCK' : item.status,
+  };
+
+  const parentRow = item.parentWarehouseId
+    ? warehouseItems.find((w) => w.id === item.parentWarehouseId)
+    : null;
+  const historyProductName = parentRow
+    ? `${item.productName} (${parentRow.productName})`
+    : item.productName;
+
+  const record: StreetPurchaseRecord = {
+    id: preserve?.id ?? uid('sth'),
+    streetObjectId:
+      input.recordStreetObjectId !== undefined ? input.recordStreetObjectId : streetObject.id,
+    streetObjectName: input.recordStreetObjectName ?? streetObject.fullName,
+    warehouseItemId: item.id,
+    incomeDate: input.incomeDate,
+    productName: historyProductName,
+    category: item.category,
+    unit: item.unit,
+    quantity: qty,
+    pricePerUnit: hasPositive ? p : null,
+    totalAmount: lineTotal,
+    paidAmount: lineTotal != null ? paid : null,
+    streetObjectDebtAmount: debt,
     onCredit: onCreditFlag,
     notes: input.notes?.trim() || null,
     purchaseBatchId: input.purchaseBatchId ?? null,
@@ -1298,6 +1680,353 @@ function reducer(state: SaralashState, action: Action): SaralashState {
       };
     }
 
+    case 'STREET_OBJECT_ADD':
+      return { ...state, streetObjects: [action.payload, ...state.streetObjects] };
+
+    case 'STREET_OBJECT_UPDATE':
+      return {
+        ...state,
+        streetObjects: state.streetObjects.map((s) =>
+          s.id === action.payload.id ? action.payload : s,
+        ),
+        streetPurchases: state.streetPurchases.map((p) =>
+          p.streetObjectId === action.payload.id
+            ? { ...p, streetObjectName: action.payload.fullName }
+            : p,
+        ),
+      };
+
+    case 'STREET_OBJECT_DELETE':
+      return {
+        ...state,
+        streetObjects: state.streetObjects.filter((s) => s.id !== action.payload.id),
+        streetPurchases: state.streetPurchases.map((p) =>
+          p.streetObjectId === action.payload.id ? { ...p, streetObjectId: null } : p,
+        ),
+      };
+
+    case 'STREET_PURCHASE_ADD':
+      return { ...state, streetPurchases: [action.payload, ...state.streetPurchases] };
+
+    case 'STREET_PURCHASE_BATCH': {
+      const { streetObjectId, incomeDate, notes, onCredit, paidAmount, lines } = action.payload;
+      if (!lines.length) return state;
+      const streetObject = state.streetObjects.find((s) => s.id === streetObjectId);
+      if (!streetObject) return state;
+
+      const resolved: Array<{
+        warehouseItemId: string;
+        quantity: number;
+        streetPurchasePricePerUnit?: number | null;
+        lineTotal: number | null;
+      }> = [];
+
+      for (const line of lines) {
+        const item = state.warehouseItems.find((w) => w.id === line.warehouseItemId);
+        if (!item) return state;
+        const qty = normalizeSupplierPurchaseQty(item, line.quantity);
+        if (qty == null) return state;
+        const p = line.streetPurchasePricePerUnit;
+        const hasPositive = p != null && Number.isFinite(p) && p > 0;
+        resolved.push({
+          warehouseItemId: line.warehouseItemId,
+          quantity: qty,
+          streetPurchasePricePerUnit: line.streetPurchasePricePerUnit,
+          lineTotal: hasPositive ? p * qty : null,
+        });
+      }
+
+      const priced = resolved.filter((r) => r.lineTotal != null) as Array<
+        (typeof resolved)[0] & { lineTotal: number }
+      >;
+      const orderTotal = priced.reduce((s, r) => s + r.lineTotal, 0);
+
+      let perLinePaid: (number | null)[] = resolved.map(() => null);
+      if (orderTotal > 0) {
+        const paidRaw = paidAmount;
+        const paid =
+          paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
+        if (paid == null) return state;
+        if (onCredit && paid > orderTotal + 1e-6) return state;
+        const allocated = allocateSupplierPurchasePaid(
+          priced.map((r) => r.lineTotal),
+          paid,
+          onCredit,
+        );
+        if (!allocated) return state;
+        let ai = 0;
+        perLinePaid = resolved.map((r) => {
+          if (r.lineTotal == null) return null;
+          const v = allocated[ai];
+          ai += 1;
+          return v;
+        });
+      }
+
+      let warehouseItems = state.warehouseItems;
+      const newRecords: StreetPurchaseRecord[] = [];
+      const sharedNotes = notes?.trim() || null;
+      const purchaseBatchId = uid('stpb');
+      const batchCreatedAt = new Date().toISOString();
+
+      for (let i = 0; i < resolved.length; i++) {
+        const r = resolved[i];
+        const result = buildStreetPurchaseUpdate(streetObject, warehouseItems, {
+          warehouseItemId: r.warehouseItemId,
+          quantity: r.quantity,
+          incomeDate,
+          notes: sharedNotes,
+          streetPurchasePricePerUnit: r.streetPurchasePricePerUnit,
+          paidAmount: perLinePaid[i],
+          onCredit,
+          purchaseBatchId,
+          batchCreatedAt,
+        });
+        if (!result) return state;
+        warehouseItems = result.warehouseItems;
+        newRecords.push(result.record);
+      }
+
+      return {
+        ...state,
+        warehouseItems,
+        streetPurchases: [...newRecords, ...state.streetPurchases],
+      };
+    }
+
+    case 'STREET_PURCHASE_DELETE': {
+      const { id } = action.payload;
+      const old = state.streetPurchases.find((p) => p.id === id);
+      if (!old) return state;
+      const warehouseItems = reverseSupplierPurchaseWarehouse(
+        state.warehouseItems,
+        old.warehouseItemId,
+        old.quantity,
+      );
+      if (!warehouseItems) return state;
+      let streetPurchases = state.streetPurchases.filter((p) => p.id !== id);
+      streetPurchases = reconcileStreetPurchasesAfterChange(
+        streetPurchases,
+        state.streetDebtRepayments,
+        old.streetObjectId,
+      );
+      return { ...state, warehouseItems, streetPurchases };
+    }
+
+    case 'STREET_PURCHASE_BATCH_DELETE': {
+      const { batchId } = action.payload;
+      const olds = state.streetPurchases.filter((p) => getStreetPurchaseBatchKey(p) === batchId);
+      if (!olds.length) return state;
+
+      let warehouseItems = state.warehouseItems;
+      for (const o of [...olds].reverse()) {
+        const rev = reverseSupplierPurchaseWarehouse(
+          warehouseItems,
+          o.warehouseItemId,
+          o.quantity,
+        );
+        if (!rev) return state;
+        warehouseItems = rev;
+      }
+
+      let streetPurchases = state.streetPurchases.filter(
+        (p) => getStreetPurchaseBatchKey(p) !== batchId,
+      );
+      streetPurchases = reconcileStreetPurchasesAfterChange(
+        streetPurchases,
+        state.streetDebtRepayments,
+        olds[0].streetObjectId,
+      );
+      return { ...state, warehouseItems, streetPurchases };
+    }
+
+    case 'STREET_PURCHASE_BATCH_REPLACE': {
+      const { batchId, streetObjectId, incomeDate, notes, onCredit, paidAmount, lines } =
+        action.payload;
+      const streetObject = state.streetObjects.find((s) => s.id === streetObjectId);
+      if (!streetObject || !lines.length) return state;
+
+      const olds = state.streetPurchases.filter((p) => getStreetPurchaseBatchKey(p) === batchId);
+      if (!olds.length) return state;
+
+      let warehouseItems = state.warehouseItems;
+      for (const o of [...olds].reverse()) {
+        const rev = reverseSupplierPurchaseWarehouse(
+          warehouseItems,
+          o.warehouseItemId,
+          o.quantity,
+        );
+        if (!rev) return state;
+        warehouseItems = rev;
+      }
+
+      const batchCreatedAt = olds.reduce(
+        (min, p) => (p.createdAt < min ? p.createdAt : min),
+        olds[0].createdAt,
+      );
+      let streetPurchases = state.streetPurchases.filter(
+        (p) => getStreetPurchaseBatchKey(p) !== batchId,
+      );
+
+      const resolved: Array<{
+        warehouseItemId: string;
+        quantity: number;
+        streetPurchasePricePerUnit?: number | null;
+        lineTotal: number | null;
+      }> = [];
+
+      for (const line of lines) {
+        const item = warehouseItems.find((w) => w.id === line.warehouseItemId);
+        if (!item) return state;
+        const qty = normalizeSupplierPurchaseQty(item, line.quantity);
+        if (qty == null) return state;
+        const p = line.streetPurchasePricePerUnit;
+        const hasPositive = p != null && Number.isFinite(p) && p > 0;
+        resolved.push({
+          warehouseItemId: line.warehouseItemId,
+          quantity: qty,
+          streetPurchasePricePerUnit: line.streetPurchasePricePerUnit,
+          lineTotal: hasPositive ? p * qty : null,
+        });
+      }
+
+      const priced = resolved.filter((r) => r.lineTotal != null) as Array<
+        (typeof resolved)[0] & { lineTotal: number }
+      >;
+      const orderTotal = priced.reduce((s, r) => s + r.lineTotal, 0);
+
+      let perLinePaid: (number | null)[] = resolved.map(() => null);
+      if (orderTotal > 0) {
+        const paidRaw = paidAmount;
+        const paid =
+          paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
+        if (paid == null) return state;
+        if (onCredit && paid > orderTotal + 1e-6) return state;
+        const allocated = allocateSupplierPurchasePaid(
+          priced.map((r) => r.lineTotal),
+          paid,
+          onCredit,
+        );
+        if (!allocated) return state;
+        let ai = 0;
+        perLinePaid = resolved.map((r) => {
+          if (r.lineTotal == null) return null;
+          const v = allocated[ai];
+          ai += 1;
+          return v;
+        });
+      }
+
+      const newRecords: StreetPurchaseRecord[] = [];
+      const sharedNotes = notes?.trim() || null;
+
+      for (let i = 0; i < resolved.length; i++) {
+        const r = resolved[i];
+        const result = buildStreetPurchaseUpdate(streetObject, warehouseItems, {
+          warehouseItemId: r.warehouseItemId,
+          quantity: r.quantity,
+          incomeDate,
+          notes: sharedNotes,
+          streetPurchasePricePerUnit: r.streetPurchasePricePerUnit,
+          paidAmount: perLinePaid[i],
+          onCredit,
+          purchaseBatchId: batchId,
+          batchCreatedAt,
+        });
+        if (!result) return state;
+        warehouseItems = result.warehouseItems;
+        newRecords.push(result.record);
+      }
+
+      streetPurchases = [...newRecords, ...streetPurchases];
+      streetPurchases = reconcileStreetPurchasesAfterChange(
+        streetPurchases,
+        state.streetDebtRepayments,
+        streetObjectId,
+      );
+      return { ...state, warehouseItems, streetPurchases };
+    }
+
+    case 'STREET_PURCHASE_UPDATE': {
+      const {
+        id,
+        streetObjectId,
+        streetObjectName,
+        warehouseItemId,
+        quantity,
+        incomeDate,
+        notes,
+        streetPurchasePricePerUnit,
+        paidAmount,
+        onCredit,
+      } = action.payload;
+      const old = state.streetPurchases.find((p) => p.id === id);
+      if (!old) return state;
+
+      const streetStub: StreetObject = {
+        id: streetObjectId ?? 'orphan',
+        fullName: streetObjectName,
+        phone: '',
+        address: '',
+        notes: '',
+        createdAt: old.createdAt,
+      };
+      if (streetObjectId && !state.streetObjects.some((s) => s.id === streetObjectId)) return state;
+
+      let warehouseItems = reverseSupplierPurchaseWarehouse(
+        state.warehouseItems,
+        old.warehouseItemId,
+        old.quantity,
+      );
+      if (!warehouseItems) return state;
+
+      const purchasesWithout = state.streetPurchases.filter((p) => p.id !== id);
+      const result = buildStreetPurchaseUpdate(
+        streetStub,
+        warehouseItems,
+        {
+          warehouseItemId,
+          quantity,
+          incomeDate,
+          notes: notes ?? null,
+          streetPurchasePricePerUnit,
+          paidAmount,
+          onCredit,
+          recordStreetObjectId: streetObjectId,
+          recordStreetObjectName: streetObjectName,
+        },
+        { id: old.id, createdAt: old.createdAt },
+      );
+      if (!result) return state;
+
+      let streetPurchases = [...purchasesWithout, result.record];
+      if (old.streetObjectId && old.streetObjectId !== streetObjectId) {
+        streetPurchases = reconcileStreetPurchasesAfterChange(
+          streetPurchases,
+          state.streetDebtRepayments,
+          old.streetObjectId,
+        );
+      }
+      if (streetObjectId) {
+        streetPurchases = reconcileStreetPurchasesAfterChange(
+          streetPurchases,
+          state.streetDebtRepayments,
+          streetObjectId,
+        );
+      }
+      return { ...state, warehouseItems: result.warehouseItems, streetPurchases };
+    }
+
+    case 'STREET_DEBT_REPAYMENT_ADD': {
+      const repayment = action.payload;
+      const streetPurchases = applyRepaymentToStreetPurchases(state.streetPurchases, repayment);
+      return {
+        ...state,
+        streetDebtRepayments: [repayment, ...state.streetDebtRepayments],
+        streetPurchases,
+      };
+    }
+
     case 'INTAKE_ADD':
       return { ...state, intakes: [action.payload, ...state.intakes] };
 
@@ -1530,7 +2259,7 @@ function reducer(state: SaralashState, action: Action): SaralashState {
     }
 
     case 'POS_CHECKOUT': {
-      const { date, customerId, customerName, paidAmount, lines } = action.payload;
+      const { date, customerId, customerName, paidAmount, paymentMethod, lines } = action.payload;
       if (!lines.length) return state;
       if (!customerId?.trim()) return state;
       if (!state.customers.some((c) => c.id === customerId)) return state;
@@ -1566,6 +2295,7 @@ function reducer(state: SaralashState, action: Action): SaralashState {
           id: uid('out'),
           posOrderId,
           orderPaidTotal: paid,
+          orderPaymentMethod: paymentMethod,
           warehouseItemId: item.id,
           productName: item.productName,
           type: 'SOLD',
@@ -1603,7 +2333,8 @@ function reducer(state: SaralashState, action: Action): SaralashState {
     }
 
     case 'POS_ORDER_UPDATE': {
-      const { posOrderId, date, customerId, customerName, paidAmount, lines } = action.payload;
+      const { posOrderId, date, customerId, customerName, paidAmount, paymentMethod, lines } =
+        action.payload;
       if (!lines.length || !customerId?.trim()) return state;
       if (!state.customers.some((c) => c.id === customerId)) return state;
 
@@ -1670,6 +2401,7 @@ function reducer(state: SaralashState, action: Action): SaralashState {
           id: uid('out'),
           posOrderId,
           orderPaidTotal: paid,
+          orderPaymentMethod: paymentMethod,
           warehouseItemId: item.id,
           productName: item.productName,
           type: 'SOLD',
@@ -1826,11 +2558,42 @@ export function getSupplierRemainingDebt(state: SaralashState, supplierId: strin
   return getSupplierPurchaseDebtIncurred(state, supplierId);
 }
 
-/** Ro‘yxatdan o‘chirilgan ko‘cha obyekti (`supplierId` null) xaridlaridagi qarz. */
+/** Ro‘yxatdan o‘chirilgan baza (`supplierId` null) xaridlaridagi qarz. */
 export function getOrphanSupplierDebtIncurred(state: SaralashState): number {
   return state.supplierPurchases.reduce((sum, p) => {
     if (p.supplierId != null) return sum;
     const d = p.supplierDebtAmount;
+    if (d == null || !Number.isFinite(d) || d <= 0) return sum;
+    return sum + d;
+  }, 0);
+}
+
+export function getStreetPurchaseDebtIncurred(state: SaralashState, streetObjectId: string): number {
+  return state.streetPurchases.reduce((sum, p) => {
+    if (p.streetObjectId !== streetObjectId) return sum;
+    const d = p.streetObjectDebtAmount;
+    if (d == null || !Number.isFinite(d) || d <= 0) return sum;
+    return sum + d;
+  }, 0);
+}
+
+export function getStreetDebtRepaid(state: SaralashState, streetObjectId: string): number {
+  return state.streetDebtRepayments.reduce((sum, r) => {
+    if (r.streetObjectId !== streetObjectId) return sum;
+    const a = r.amount;
+    if (a == null || !Number.isFinite(a) || a <= 0) return sum;
+    return sum + a;
+  }, 0);
+}
+
+export function getStreetObjectRemainingDebt(state: SaralashState, streetObjectId: string): number {
+  return getStreetPurchaseDebtIncurred(state, streetObjectId);
+}
+
+export function getOrphanStreetDebtIncurred(state: SaralashState): number {
+  return state.streetPurchases.reduce((sum, p) => {
+    if (p.streetObjectId != null) return sum;
+    const d = p.streetObjectDebtAmount;
     if (d == null || !Number.isFinite(d) || d <= 0) return sum;
     return sum + d;
   }, 0);
@@ -1933,6 +2696,58 @@ interface StoreContextValue {
       onCredit: boolean;
     },
   ) => boolean;
+  // Street objects (ko‘cha obyektlari olish)
+  addStreetObject: (input: Omit<StreetObject, 'id' | 'createdAt'>) => StreetObject;
+  updateStreetObject: (streetObject: StreetObject) => void;
+  deleteStreetObject: (id: string) => void;
+  recordStreetDebtRepayment: (
+    streetObjectId: string,
+    input: { amount: number; date: string; notes?: string },
+  ) => StreetDebtRepayment | null;
+  purchaseLinesFromStreetObject: (
+    streetObjectId: string,
+    input: {
+      incomeDate: string;
+      notes?: string;
+      onCredit: boolean;
+      paidAmount?: number | null;
+      lines: Array<{
+        warehouseItemId: string;
+        quantity: number;
+        streetPurchasePricePerUnit?: number | null;
+      }>;
+    },
+  ) => boolean;
+  deleteStreetPurchase: (purchaseId: string) => boolean;
+  deleteStreetPurchaseBatch: (batchId: string) => boolean;
+  replaceStreetPurchaseBatch: (
+    batchId: string,
+    input: {
+      streetObjectId: string;
+      incomeDate: string;
+      notes?: string;
+      onCredit: boolean;
+      paidAmount?: number | null;
+      lines: Array<{
+        warehouseItemId: string;
+        quantity: number;
+        streetPurchasePricePerUnit?: number | null;
+      }>;
+    },
+  ) => boolean;
+  updateStreetPurchase: (
+    purchaseId: string,
+    input: {
+      streetObjectId: string | null;
+      warehouseItemId: string;
+      quantity: number;
+      incomeDate: string;
+      notes?: string;
+      streetPurchasePricePerUnit?: number | null;
+      paidAmount?: number | null;
+      onCredit: boolean;
+    },
+  ) => boolean;
   // Intakes
   addIntake: (input: Omit<Intake, 'id' | 'createdAt' | 'status' | 'remainingKg'>) => Intake;
   deleteIntake: (id: string) => void;
@@ -1967,6 +2782,7 @@ interface StoreContextValue {
     customerId: string | null;
     customerName: string | null;
     paidAmount: number;
+    paymentMethod: PosPaymentMethod;
     lines: PosCheckoutLine[];
   }) => boolean;
   /** Mavjud POS buyurtmasini (bir xil `posOrderId`) yangi qatorlar/to‘lov/mijoz bilan almashtirish. */
@@ -1976,6 +2792,7 @@ interface StoreContextValue {
     customerId: string;
     customerName: string | null;
     paidAmount: number;
+    paymentMethod: PosPaymentMethod;
     lines: PosCheckoutLine[];
   }) => boolean;
   /** Sotuv tarixidan buyurtmani o‘chirish (ombor va mijoz statistikasi qaytariladi). */
@@ -2230,6 +3047,176 @@ function canPosOrderUpdate(
   return true;
 }
 
+function streetPurchasesInBatch(state: SaralashState, batchId: string): StreetPurchaseRecord[] {
+  return state.streetPurchases.filter((p) => getStreetPurchaseBatchKey(p) === batchId);
+}
+
+function canDeleteStreetPurchase(state: SaralashState, purchaseId: string): boolean {
+  const old = state.streetPurchases.find((p) => p.id === purchaseId);
+  if (!old) return false;
+  return canReverseSupplierPurchase(state, old.warehouseItemId, old.quantity);
+}
+
+function canDeleteStreetPurchaseBatch(state: SaralashState, batchId: string): boolean {
+  const olds = streetPurchasesInBatch(state, batchId);
+  if (!olds.length) return false;
+  let items = state.warehouseItems;
+  for (const o of [...olds].reverse()) {
+    const rev = reverseSupplierPurchaseWarehouse(items, o.warehouseItemId, o.quantity);
+    if (!rev) return false;
+    items = rev;
+  }
+  return true;
+}
+
+function canReplaceStreetPurchaseBatch(
+  state: SaralashState,
+  batchId: string,
+  input: {
+    streetObjectId: string;
+    lines: Array<{
+      warehouseItemId: string;
+      quantity: number;
+      streetPurchasePricePerUnit?: number | null;
+    }>;
+    paidAmount?: number | null;
+    onCredit: boolean;
+  },
+): boolean {
+  if (!state.streetObjects.some((s) => s.id === input.streetObjectId) || !input.lines.length) return false;
+  const olds = streetPurchasesInBatch(state, batchId);
+  if (!olds.length) return false;
+  let items = state.warehouseItems;
+  for (const o of [...olds].reverse()) {
+    const rev = reverseSupplierPurchaseWarehouse(items, o.warehouseItemId, o.quantity);
+    if (!rev) return false;
+    items = rev;
+  }
+  return canPurchaseLinesFromStreetObject(state, input.streetObjectId, {
+    lines: input.lines,
+    paidAmount: input.paidAmount,
+    onCredit: input.onCredit,
+  });
+}
+
+function canUpdateStreetPurchase(
+  state: SaralashState,
+  purchaseId: string,
+  input: {
+    streetObjectId: string | null;
+    warehouseItemId: string;
+    quantity: number;
+    streetPurchasePricePerUnit?: number | null;
+    paidAmount?: number | null;
+    onCredit: boolean;
+  },
+): boolean {
+  const old = state.streetPurchases.find((p) => p.id === purchaseId);
+  if (!old) return false;
+  if (input.streetObjectId && !state.streetObjects.some((s) => s.id === input.streetObjectId)) return false;
+  if (!canReverseSupplierPurchase(state, old.warehouseItemId, old.quantity)) return false;
+
+  const item = state.warehouseItems.find((w) => w.id === input.warehouseItemId);
+  if (!item) return false;
+  const qty = normalizeSupplierPurchaseQty(item, input.quantity);
+  if (qty == null) return false;
+
+  let items = reverseSupplierPurchaseWarehouse(state.warehouseItems, old.warehouseItemId, old.quantity);
+  if (!items) return false;
+
+  const streetObject = input.streetObjectId
+    ? state.streetObjects.find((s) => s.id === input.streetObjectId)
+    : null;
+  const streetStub: StreetObject = streetObject ?? {
+    id: 'orphan',
+    fullName: old.streetObjectName,
+    phone: '',
+    address: '',
+    notes: '',
+    createdAt: old.createdAt,
+  };
+
+  const p = input.streetPurchasePricePerUnit;
+  const hasPositive = p != null && Number.isFinite(p) && p > 0;
+  const lineTotal = hasPositive ? p * qty : null;
+  const paidRaw = input.paidAmount;
+  const paid =
+    paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
+  if (lineTotal != null) {
+    if (paid == null) return false;
+    if (input.onCredit) {
+      if (paid > lineTotal + 1e-6) return false;
+    } else if (Math.abs(paid - lineTotal) > 1e-4 * Math.max(1, lineTotal)) {
+      return false;
+    }
+  }
+
+  const result = buildStreetPurchaseUpdate(
+    streetStub,
+    items,
+    {
+      warehouseItemId: input.warehouseItemId,
+      quantity: qty,
+      incomeDate: old.incomeDate,
+      streetPurchasePricePerUnit: input.streetPurchasePricePerUnit,
+      paidAmount: paid,
+      onCredit: input.onCredit,
+      recordStreetObjectId: input.streetObjectId,
+      recordStreetObjectName: streetObject?.fullName ?? old.streetObjectName,
+    },
+    { id: old.id, createdAt: old.createdAt },
+  );
+  return result != null;
+}
+
+function canPurchaseLinesFromStreetObject(
+  state: SaralashState,
+  streetObjectId: string,
+  input: {
+    lines: Array<{
+      warehouseItemId: string;
+      quantity: number;
+      streetPurchasePricePerUnit?: number | null;
+    }>;
+    paidAmount?: number | null;
+    onCredit: boolean;
+  },
+): boolean {
+  if (!state.streetObjects.some((s) => s.id === streetObjectId) || !input.lines.length) return false;
+
+  const resolved: Array<{ lineTotal: number | null }> = [];
+  for (const line of input.lines) {
+    const item = state.warehouseItems.find((w) => w.id === line.warehouseItemId);
+    if (!item) return false;
+    const qty = normalizeSupplierPurchaseQty(item, line.quantity);
+    if (qty == null) return false;
+    const p = line.streetPurchasePricePerUnit;
+    const hasPositive = p != null && Number.isFinite(p) && p > 0;
+    resolved.push({ lineTotal: hasPositive ? p * qty : null });
+  }
+
+  const priced = resolved.filter((r) => r.lineTotal != null) as Array<{ lineTotal: number }>;
+  const orderTotal = priced.reduce((s, r) => s + r.lineTotal, 0);
+  if (orderTotal <= 0) return true;
+
+  const paidRaw = input.paidAmount;
+  const paid = paidRaw != null && Number.isFinite(paidRaw) && paidRaw >= 0 ? paidRaw : null;
+  if (paid == null) return false;
+  if (input.onCredit) {
+    if (paid > orderTotal + 1e-6) return false;
+    return allocateSupplierPurchasePaid(
+      priced.map((r) => r.lineTotal),
+      paid,
+      true,
+    ) != null;
+  }
+  return allocateSupplierPurchasePaid(
+    priced.map((r) => r.lineTotal),
+    paid,
+    false,
+  ) != null;
+}
+
 const StoreContext = createContext<StoreContextValue | null>(null);
 
 /** localStorage yoki serverdan kelgan qisman JSON ni to‘liq holatga keltiradi. */
@@ -2293,6 +3280,29 @@ export function normalizeAppState(parsed: Partial<SaralashState> | null | undefi
     supplierPurchases = migrateSupplierPurchaseBatchIds(supplierPurchases);
     supplierPurchases = syncAllSupplierPurchasesPaidFromTotals(supplierPurchases);
 
+    const streetObjects = Array.isArray(parsed.streetObjects) ? parsed.streetObjects : [];
+    let streetPurchases = Array.isArray(parsed.streetPurchases) ? parsed.streetPurchases : [];
+    const streetDebtRepayments = Array.isArray(parsed.streetDebtRepayments)
+      ? parsed.streetDebtRepayments
+      : [];
+
+    streetPurchases = reconcileStreetPurchasesDebtsWithRepayments(
+      streetPurchases,
+      streetDebtRepayments,
+    );
+    streetPurchases = migrateStreetPurchaseBatchIds(streetPurchases);
+    streetPurchases = syncAllStreetPurchasesPaidFromTotals(streetPurchases);
+
+    const warehouseItems = Array.isArray(parsed.warehouseItems)
+      ? (parsed.warehouseItems as WarehouseItem[]).map((w) => ({
+          ...w,
+          streetPurchasePricePerUnit:
+            w.streetPurchasePricePerUnit != null && Number.isFinite(w.streetPurchasePricePerUnit)
+              ? w.streetPurchasePricePerUnit
+              : null,
+        }))
+      : [];
+
     const hasExpenseCategoryStorage =
       parsed !== null && typeof parsed === 'object' && 'expenseCategories' in parsed;
     const expenseCategories = Array.isArray(parsed.expenseCategories)
@@ -2309,6 +3319,10 @@ export function normalizeAppState(parsed: Partial<SaralashState> | null | undefi
       suppliers,
       supplierPurchases,
       supplierDebtRepayments,
+      streetObjects,
+      streetPurchases,
+      streetDebtRepayments,
+      warehouseItems: warehouseItems.length ? warehouseItems : parsed.warehouseItems ?? [],
       customerDebtRepayments,
       expenseCategories,
       expenses,
@@ -2732,6 +3746,123 @@ export function SaralashProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const addStreetObject = useCallback<StoreContextValue['addStreetObject']>((input) => {
+    const streetObject: StreetObject = {
+      ...input,
+      id: uid('sto'),
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: 'STREET_OBJECT_ADD', payload: streetObject });
+    return streetObject;
+  }, []);
+
+  const updateStreetObject = useCallback<StoreContextValue['updateStreetObject']>((streetObject) => {
+    dispatch({ type: 'STREET_OBJECT_UPDATE', payload: streetObject });
+  }, []);
+
+  const deleteStreetObject = useCallback<StoreContextValue['deleteStreetObject']>((id) => {
+    dispatch({ type: 'STREET_OBJECT_DELETE', payload: { id } });
+  }, []);
+
+  const recordStreetDebtRepayment = useCallback<StoreContextValue['recordStreetDebtRepayment']>(
+    (streetObjectId, input) => {
+      const streetObject = stateRef.current.streetObjects.find((s) => s.id === streetObjectId);
+      if (!streetObject) return null;
+      const amt = input.amount;
+      if (!Number.isFinite(amt) || amt <= 0) return null;
+      const remaining = getStreetObjectRemainingDebt(stateRef.current, streetObjectId);
+      if (amt > remaining + 1e-6) return null;
+      const row: StreetDebtRepayment = {
+        id: uid('stdr'),
+        streetObjectId,
+        streetObjectName: streetObject.fullName,
+        amount: amt,
+        date: input.date,
+        notes: input.notes?.trim() || null,
+        createdAt: new Date().toISOString(),
+      };
+      dispatch({ type: 'STREET_DEBT_REPAYMENT_ADD', payload: row });
+      return row;
+    },
+    [],
+  );
+
+  const purchaseLinesFromStreetObject = useCallback<StoreContextValue['purchaseLinesFromStreetObject']>(
+    (streetObjectId, input) => {
+      if (!canPurchaseLinesFromStreetObject(stateRef.current, streetObjectId, input)) return false;
+      dispatch({ type: 'STREET_PURCHASE_BATCH', payload: { streetObjectId, ...input } });
+      return true;
+    },
+    [],
+  );
+
+  const deleteStreetPurchase = useCallback<StoreContextValue['deleteStreetPurchase']>(
+    (purchaseId) => {
+      if (!canDeleteStreetPurchase(stateRef.current, purchaseId)) return false;
+      dispatch({ type: 'STREET_PURCHASE_DELETE', payload: { id: purchaseId } });
+      return true;
+    },
+    [],
+  );
+
+  const deleteStreetPurchaseBatch = useCallback<StoreContextValue['deleteStreetPurchaseBatch']>(
+    (batchId) => {
+      if (!canDeleteStreetPurchaseBatch(stateRef.current, batchId)) return false;
+      dispatch({ type: 'STREET_PURCHASE_BATCH_DELETE', payload: { batchId } });
+      return true;
+    },
+    [],
+  );
+
+  const replaceStreetPurchaseBatch = useCallback<StoreContextValue['replaceStreetPurchaseBatch']>(
+    (batchId, input) => {
+      if (!canReplaceStreetPurchaseBatch(stateRef.current, batchId, input)) return false;
+      dispatch({ type: 'STREET_PURCHASE_BATCH_REPLACE', payload: { batchId, ...input } });
+      return true;
+    },
+    [],
+  );
+
+  const updateStreetPurchase = useCallback<StoreContextValue['updateStreetPurchase']>(
+    (purchaseId, input) => {
+      const old = stateRef.current.streetPurchases.find((p) => p.id === purchaseId);
+      if (!old) return false;
+      const streetObject = input.streetObjectId
+        ? stateRef.current.streetObjects.find((s) => s.id === input.streetObjectId)
+        : null;
+      if (input.streetObjectId && !streetObject) return false;
+      if (
+        !canUpdateStreetPurchase(stateRef.current, purchaseId, {
+          streetObjectId: input.streetObjectId,
+          warehouseItemId: input.warehouseItemId,
+          quantity: input.quantity,
+          streetPurchasePricePerUnit: input.streetPurchasePricePerUnit,
+          paidAmount: input.paidAmount,
+          onCredit: input.onCredit,
+        })
+      ) {
+        return false;
+      }
+      dispatch({
+        type: 'STREET_PURCHASE_UPDATE',
+        payload: {
+          id: purchaseId,
+          streetObjectId: input.streetObjectId,
+          streetObjectName: streetObject?.fullName ?? old.streetObjectName,
+          warehouseItemId: input.warehouseItemId,
+          quantity: input.quantity,
+          incomeDate: input.incomeDate,
+          notes: input.notes,
+          streetPurchasePricePerUnit: input.streetPurchasePricePerUnit,
+          paidAmount: input.paidAmount,
+          onCredit: input.onCredit,
+        },
+      });
+      return true;
+    },
+    [],
+  );
+
   const updateWarehouseItem = useCallback<StoreContextValue['updateWarehouseItem']>((item) => {
     dispatch({ type: 'WAREHOUSE_UPDATE', payload: item });
   }, []);
@@ -2892,6 +4023,15 @@ export function SaralashProvider({ children }: { children: React.ReactNode }) {
       deleteSupplierPurchaseBatch,
       replaceSupplierPurchaseBatch,
       updateSupplierPurchase,
+      addStreetObject,
+      updateStreetObject,
+      deleteStreetObject,
+      recordStreetDebtRepayment,
+      purchaseLinesFromStreetObject,
+      deleteStreetPurchase,
+      deleteStreetPurchaseBatch,
+      replaceStreetPurchaseBatch,
+      updateStreetPurchase,
       addIntake,
       deleteIntake,
       distributeIntake,
@@ -2929,6 +4069,15 @@ export function SaralashProvider({ children }: { children: React.ReactNode }) {
       deleteSupplierPurchaseBatch,
       replaceSupplierPurchaseBatch,
       updateSupplierPurchase,
+      addStreetObject,
+      updateStreetObject,
+      deleteStreetObject,
+      recordStreetDebtRepayment,
+      purchaseLinesFromStreetObject,
+      deleteStreetPurchase,
+      deleteStreetPurchaseBatch,
+      replaceStreetPurchaseBatch,
+      updateStreetPurchase,
       addIntake,
       deleteIntake,
       distributeIntake,

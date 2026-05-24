@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   useStore,
-  type SupplierPurchaseHistoryGroup,
+  type StreetPurchaseHistoryGroup,
   type WarehouseItem,
 } from '../store/saralash-store';
 import { useApp } from '../i18n/app-context';
@@ -56,7 +56,7 @@ function newDraftLine(warehouseItemId = '', pricePerUnit = ''): DraftLine {
   return { key: uid('spe'), warehouseItemId, quantity: '', qtyParts: [], pricePerUnit };
 }
 
-export function SupplierPurchaseEditDialog({
+export function StreetObjectPurchaseEditDialog({
   batch,
   open,
   onOpenChange,
@@ -64,17 +64,17 @@ export function SupplierPurchaseEditDialog({
   warehouseProductTitle,
   prefPrice,
 }: {
-  batch: SupplierPurchaseHistoryGroup | null;
+  batch: StreetPurchaseHistoryGroup | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   warehouseOptions: WarehouseItem[];
   warehouseProductTitle: (w: WarehouseItem) => string;
   prefPrice: (w: WarehouseItem | undefined) => string;
 }) {
-  const { state, replaceSupplierPurchaseBatch, deleteSupplierPurchaseBatch } = useStore();
+  const { state, replaceStreetPurchaseBatch, deleteStreetPurchaseBatch } = useStore();
   const { t } = useApp();
 
-  const [supplierId, setSupplierId] = useState('');
+  const [streetObjectId, setStreetObjectId] = useState('');
   const [incomeDate, setIncomeDate] = useState('');
   const [paidAmount, setPaidAmount] = useState('');
   const [onCredit, setOnCredit] = useState(false);
@@ -86,7 +86,7 @@ export function SupplierPurchaseEditDialog({
   const resetFromBatch = useCallback(() => {
     if (!batch?.lines.length) return;
     const first = batch.lines[0];
-    setSupplierId(batch.supplierId ?? '');
+    setStreetObjectId(batch.streetObjectId ?? '');
     setIncomeDate(batch.incomeDate);
     setNotes(batch.notes?.trim() ?? '');
     setOnCredit(batch.lines.some((l) => l.onCredit));
@@ -178,7 +178,7 @@ export function SupplierPurchaseEditDialog({
     const w = state.warehouseItems.find((x) => x.id === editing.warehouseItemId);
     const finalized = finalizeQtyParts(editing, w?.unit ?? 'kg');
     if (!finalized.ok) {
-      if (finalized.reason === 'pcs_whole') toast.error(t.suppPurchasePcsWhole);
+      if (finalized.reason === 'pcs_whole') toast.error(t.streetPurchasePcsWhole);
       else toast.error(t.required);
       return;
     }
@@ -204,7 +204,7 @@ export function SupplierPurchaseEditDialog({
     const w = state.warehouseItems.find((x) => x.id === line.warehouseItemId);
     const result = appendQtyPart(line, w?.unit ?? 'kg');
     if (!result.ok) {
-      if (result.reason === 'pcs_whole') toast.error(t.suppPurchasePcsWhole);
+      if (result.reason === 'pcs_whole') toast.error(t.streetPurchasePcsWhole);
       else toast.error(t.required);
       return;
     }
@@ -226,27 +226,27 @@ export function SupplierPurchaseEditDialog({
 
   const handleSave = () => {
     if (!batch) return;
-    const sid = supplierId.trim();
-    if (!sid || !state.suppliers.some((s) => s.id === sid)) {
-      toast.error(t.suppPurchasePickSupplier);
+    const sid = streetObjectId.trim();
+    if (!sid || !state.streetObjects.some((s) => s.id === sid)) {
+      toast.error(t.streetPurchasePickSupplier);
       return;
     }
 
     const resolved: Array<{
       warehouseItemId: string;
       quantity: number;
-      purchasePricePerUnit: number | null;
+      streetPurchasePricePerUnit: number | null;
     }> = [];
 
     for (const line of draftLines) {
       if (!line.warehouseItemId) {
-        toast.error(t.required + ': ' + t.suppPurchasePickParent);
+        toast.error(t.required + ': ' + t.streetPurchasePickParent);
         return;
       }
       const w = state.warehouseItems.find((x) => x.id === line.warehouseItemId);
       const finalized = finalizeQtyParts(line, w?.unit ?? 'kg');
       if (!finalized.ok) {
-        if (finalized.reason === 'pcs_whole') toast.error(t.suppPurchasePcsWhole);
+        if (finalized.reason === 'pcs_whole') toast.error(t.streetPurchasePcsWhole);
         else toast.error(t.required + ': ' + t.whQuantity);
         return;
       }
@@ -257,13 +257,13 @@ export function SupplierPurchaseEditDialog({
         return;
       }
       if (w.unit === 'pcs' && Math.abs(qtyNum - Math.floor(qtyNum)) > 1e-9) {
-        toast.error(t.suppPurchasePcsWhole);
+        toast.error(t.streetPurchasePcsWhole);
         return;
       }
       resolved.push({
         warehouseItemId: line.warehouseItemId,
         quantity: qtyNum,
-        purchasePricePerUnit: priceNum,
+        streetPurchasePricePerUnit: priceNum,
       });
     }
 
@@ -272,7 +272,7 @@ export function SupplierPurchaseEditDialog({
       const payRaw = paidAmount.trim().replace(',', '.');
       if (onCredit && payRaw === '') paidNum = 0;
       else if (!payRaw) {
-        toast.error(t.required + ': ' + t.suppPaidAmount);
+        toast.error(t.required + ': ' + t.streetPaidAmount);
         return;
       } else {
         paidNum = parseFloat(payRaw);
@@ -284,17 +284,17 @@ export function SupplierPurchaseEditDialog({
       const eps = 1e-4 * Math.max(1, orderTotal);
       if (!onCredit) {
         if (Math.abs(paidNum! - orderTotal) > eps) {
-          toast.error(t.suppPaidMustEqualTotal);
+          toast.error(t.streetPaidMustEqualTotal);
           return;
         }
       } else if (paidNum! > orderTotal + 1e-6) {
-        toast.error(t.suppPaidExceedsTotal);
+        toast.error(t.streetPaidExceedsTotal);
         return;
       }
     }
 
-    const ok = replaceSupplierPurchaseBatch(batch.batchId, {
-      supplierId: sid,
+    const ok = replaceStreetPurchaseBatch(batch.batchId, {
+      streetObjectId: sid,
       incomeDate,
       notes: notes.trim() || undefined,
       onCredit,
@@ -302,21 +302,21 @@ export function SupplierPurchaseEditDialog({
       lines: resolved,
     });
     if (!ok) {
-      toast.error(t.suppPurchaseCannotReverse);
+      toast.error(t.streetPurchaseCannotReverse);
       return;
     }
-    toast.success(t.suppPurchaseUpdated);
+    toast.success(t.streetPurchaseUpdated);
     onOpenChange(false);
   };
 
   const handleDelete = () => {
     if (!batch) return;
-    const ok = deleteSupplierPurchaseBatch(batch.batchId);
+    const ok = deleteStreetPurchaseBatch(batch.batchId);
     if (!ok) {
-      toast.error(t.suppPurchaseCannotReverse);
+      toast.error(t.streetPurchaseCannotReverse);
       return;
     }
-    toast.success(t.suppPurchaseDeleted);
+    toast.success(t.streetPurchaseDeleted);
     setConfirmDelete(false);
     onOpenChange(false);
   };
@@ -327,22 +327,22 @@ export function SupplierPurchaseEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{t.suppEditPurchaseTitle}</DialogTitle>
+          <DialogTitle>{t.streetEditPurchaseTitle}</DialogTitle>
           <p className="text-xs text-slate-500">
-            {formatDate(batch.incomeDate)} · {batch.supplierName} · {batch.lines.length}{' '}
-            {t.suppHistoryProductCount}
+            {formatDate(batch.incomeDate)} · {batch.streetObjectName} · {batch.lines.length}{' '}
+            {t.streetHistoryProductCount}
           </p>
         </DialogHeader>
 
         <div className="space-y-4">
           <div>
-            <Label>{t.suppPurchasePickSupplier} *</Label>
-            <Select value={supplierId || undefined} onValueChange={setSupplierId}>
+            <Label>{t.streetPurchasePickSupplier} *</Label>
+            <Select value={streetObjectId || undefined} onValueChange={setStreetObjectId}>
               <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder={t.suppPurchasePickSupplier} />
+                <SelectValue placeholder={t.streetPurchasePickSupplier} />
               </SelectTrigger>
               <SelectContent>
-                {state.suppliers.map((s) => (
+                {state.streetObjects.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.fullName}
                   </SelectItem>
@@ -362,7 +362,7 @@ export function SupplierPurchaseEditDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>{t.suppPurchaseLinesTitle}</Label>
+            <Label>{t.streetPurchaseLinesTitle}</Label>
             {(() => {
               const editingLine =
                 draftLines.find((l) => l.key === editingKey) ?? draftLines[draftLines.length - 1];
@@ -453,17 +453,17 @@ export function SupplierPurchaseEditDialog({
                           qtyParts={editingLine.qtyParts}
                           unit={editW?.unit ?? 'kg'}
                           unitLabel={editW?.unit === 'pcs' ? t.unitPcs : 'kg'}
-                          runningTotalLabel={t.suppQtyRunningTotal}
-                          addAriaLabel={t.suppQtyAddPart}
+                          runningTotalLabel={t.streetQtyRunningTotal}
+                          addAriaLabel={t.streetQtyAddPart}
                           placeholder={editW?.unit === 'kg' ? '2,3' : '5'}
-                          pcsHint={editW?.unit === 'pcs' ? t.suppPurchasePcsWhole : undefined}
+                          pcsHint={editW?.unit === 'pcs' ? t.streetPurchasePcsWhole : undefined}
                           onQuantityChange={(value) =>
                             updateDraftLine(editingLine.key, { quantity: value })
                           }
                           onAddPart={() => appendDraftQtyPart(editingLine.key)}
                         />
                         <div>
-                          <Label className="text-xs">{t.suppPricePerUnit}</Label>
+                          <Label className="text-xs">{t.streetPricePerUnit}</Label>
                           <Input
                             value={editingLine.pricePerUnit}
                             onChange={(e) =>
@@ -475,7 +475,7 @@ export function SupplierPurchaseEditDialog({
                         </div>
                       </div>
                       <p className="text-xs">
-                        {t.suppLineTotal}:{' '}
+                        {t.streetLineTotal}:{' '}
                         <span className="nums font-semibold">
                           {editTotal != null ? `${formatNumber(editTotal)} so'm` : '—'}
                         </span>
@@ -490,7 +490,7 @@ export function SupplierPurchaseEditDialog({
                     onClick={commitDraftLineAndAddNext}
                   >
                     <Plus size={14} className="mr-1.5" />
-                    {t.suppAddPurchaseLine}
+                    {t.streetAddPurchaseLine}
                   </Button>
                 </>
               );
@@ -498,7 +498,7 @@ export function SupplierPurchaseEditDialog({
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/40">
-            <p className="text-xs text-slate-500">{t.suppPurchaseGrandTotal}</p>
+            <p className="text-xs text-slate-500">{t.streetPurchaseGrandTotal}</p>
             <p className="nums text-lg font-semibold">
               {orderTotal != null ? `${formatNumber(orderTotal)} so'm` : '—'}
             </p>
@@ -506,7 +506,7 @@ export function SupplierPurchaseEditDialog({
 
           <div>
             <Label>
-              {t.suppPaidAmount}
+              {t.streetPaidAmount}
               {orderTotal != null ? ' *' : ''}
             </Label>
             <Input
@@ -518,7 +518,7 @@ export function SupplierPurchaseEditDialog({
             />
             {onCredit && orderTotal != null && debtPreview != null && (
               <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                {t.suppDebtPreview}: {formatNumber(debtPreview)} so'm
+                {t.streetDebtPreview}: {formatNumber(debtPreview)} so'm
               </p>
             )}
           </div>
@@ -530,7 +530,7 @@ export function SupplierPurchaseEditDialog({
               checked={onCredit}
               onChange={(e) => setOnCredit(e.target.checked)}
             />
-            <span className="text-sm">{t.suppOnCredit}</span>
+            <span className="text-sm">{t.streetOnCredit}</span>
           </label>
 
           <div>
@@ -538,7 +538,7 @@ export function SupplierPurchaseEditDialog({
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1.5" />
           </div>
 
-          <p className="text-xs text-slate-500">{t.suppPurchaseReverseHint}</p>
+          <p className="text-xs text-slate-500">{t.streetPurchaseReverseHint}</p>
         </div>
 
         <DialogFooter className="flex-wrap gap-2 sm:justify-between">
@@ -565,7 +565,7 @@ export function SupplierPurchaseEditDialog({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t.delete}</AlertDialogTitle>
-            <AlertDialogDescription>{t.suppDeletePurchaseConfirm}</AlertDialogDescription>
+            <AlertDialogDescription>{t.streetDeletePurchaseConfirm}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t.cancel}</AlertDialogCancel>

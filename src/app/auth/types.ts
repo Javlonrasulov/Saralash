@@ -4,6 +4,7 @@ export type AppRouteKey =
   | 'sales'
   | 'customers'
   | 'suppliers'
+  | 'streetObjects'
   | 'expenses';
 
 export interface SessionUser {
@@ -26,6 +27,7 @@ export function pathnameToRouteKey(pathname: string): AppRouteKey | 'users' | nu
   if (pathname.startsWith('/warehouse')) return 'warehouse';
   if (pathname.startsWith('/sales')) return 'sales';
   if (pathname.startsWith('/customers')) return 'customers';
+  if (pathname.startsWith('/street-objects')) return 'streetObjects';
   if (pathname.startsWith('/suppliers')) return 'suppliers';
   if (pathname.startsWith('/expenses')) return 'expenses';
   if (pathname.startsWith('/users')) return 'users';

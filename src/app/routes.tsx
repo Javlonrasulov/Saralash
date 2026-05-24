@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Warehouse } from './pages/Warehouse';
 import { Customers } from './pages/Customers';
 import { Suppliers } from './pages/Suppliers';
+import { StreetObjects } from './pages/StreetObjects';
 import { Sales } from './pages/Sales';
 import { Expenses } from './pages/Expenses';
 import { Statistics } from './pages/Statistics';
@@ -62,6 +63,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireRoute routeKey="suppliers">
             <Suppliers />
+          </RequireRoute>
+        ),
+      },
+      {
+        path: 'street-objects',
+        element: (
+          <RequireRoute routeKey="streetObjects">
+            <StreetObjects />
           </RequireRoute>
         ),
       },

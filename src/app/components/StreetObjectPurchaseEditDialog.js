@@ -16,10 +16,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 function newDraftLine(warehouseItemId = '', pricePerUnit = '') {
     return { key: uid('spe'), warehouseItemId, quantity: '', qtyParts: [], pricePerUnit };
 }
-export function SupplierPurchaseEditDialog({ batch, open, onOpenChange, warehouseOptions, warehouseProductTitle, prefPrice, }) {
-    const { state, replaceSupplierPurchaseBatch, deleteSupplierPurchaseBatch } = useStore();
+export function StreetObjectPurchaseEditDialog({ batch, open, onOpenChange, warehouseOptions, warehouseProductTitle, prefPrice, }) {
+    const { state, replaceStreetPurchaseBatch, deleteStreetPurchaseBatch } = useStore();
     const { t } = useApp();
-    const [supplierId, setSupplierId] = useState('');
+    const [streetObjectId, setStreetObjectId] = useState('');
     const [incomeDate, setIncomeDate] = useState('');
     const [paidAmount, setPaidAmount] = useState('');
     const [onCredit, setOnCredit] = useState(false);
@@ -31,7 +31,7 @@ export function SupplierPurchaseEditDialog({ batch, open, onOpenChange, warehous
         if (!batch?.lines.length)
             return;
         const first = batch.lines[0];
-        setSupplierId(batch.supplierId ?? '');
+        setStreetObjectId(batch.streetObjectId ?? '');
         setIncomeDate(batch.incomeDate);
         setNotes(batch.notes?.trim() ?? '');
         setOnCredit(batch.lines.some((l) => l.onCredit));
@@ -117,7 +117,7 @@ export function SupplierPurchaseEditDialog({ batch, open, onOpenChange, warehous
         const finalized = finalizeQtyParts(editing, w?.unit ?? 'kg');
         if (!finalized.ok) {
             if (finalized.reason === 'pcs_whole')
-                toast.error(t.suppPurchasePcsWhole);
+                toast.error(t.streetPurchasePcsWhole);
             else
                 toast.error(t.required);
             return;
@@ -142,7 +142,7 @@ export function SupplierPurchaseEditDialog({ batch, open, onOpenChange, warehous
         const result = appendQtyPart(line, w?.unit ?? 'kg');
         if (!result.ok) {
             if (result.reason === 'pcs_whole')
-                toast.error(t.suppPurchasePcsWhole);
+                toast.error(t.streetPurchasePcsWhole);
             else
                 toast.error(t.required);
             return;
@@ -164,22 +164,22 @@ export function SupplierPurchaseEditDialog({ batch, open, onOpenChange, warehous
     const handleSave = () => {
         if (!batch)
             return;
-        const sid = supplierId.trim();
-        if (!sid || !state.suppliers.some((s) => s.id === sid)) {
-            toast.error(t.suppPurchasePickSupplier);
+        const sid = streetObjectId.trim();
+        if (!sid || !state.streetObjects.some((s) => s.id === sid)) {
+            toast.error(t.streetPurchasePickSupplier);
             return;
         }
         const resolved = [];
         for (const line of draftLines) {
             if (!line.warehouseItemId) {
-                toast.error(t.required + ': ' + t.suppPurchasePickParent);
+                toast.error(t.required + ': ' + t.streetPurchasePickParent);
                 return;
             }
             const w = state.warehouseItems.find((x) => x.id === line.warehouseItemId);
             const finalized = finalizeQtyParts(line, w?.unit ?? 'kg');
             if (!finalized.ok) {
                 if (finalized.reason === 'pcs_whole')
-                    toast.error(t.suppPurchasePcsWhole);
+                    toast.error(t.streetPurchasePcsWhole);
                 else
                     toast.error(t.required + ': ' + t.whQuantity);
                 return;
@@ -191,13 +191,13 @@ export function SupplierPurchaseEditDialog({ batch, open, onOpenChange, warehous
                 return;
             }
             if (w.unit === 'pcs' && Math.abs(qtyNum - Math.floor(qtyNum)) > 1e-9) {
-                toast.error(t.suppPurchasePcsWhole);
+                toast.error(t.streetPurchasePcsWhole);
                 return;
             }
             resolved.push({
                 warehouseItemId: line.warehouseItemId,
                 quantity: qtyNum,
-                purchasePricePerUnit: priceNum,
+                streetPurchasePricePerUnit: priceNum,
             });
         }
         let paidNum = null;
@@ -206,7 +206,7 @@ export function SupplierPurchaseEditDialog({ batch, open, onOpenChange, warehous
             if (onCredit && payRaw === '')
                 paidNum = 0;
             else if (!payRaw) {
-                toast.error(t.required + ': ' + t.suppPaidAmount);
+                toast.error(t.required + ': ' + t.streetPaidAmount);
                 return;
             }
             else {
@@ -219,17 +219,17 @@ export function SupplierPurchaseEditDialog({ batch, open, onOpenChange, warehous
             const eps = 1e-4 * Math.max(1, orderTotal);
             if (!onCredit) {
                 if (Math.abs(paidNum - orderTotal) > eps) {
-                    toast.error(t.suppPaidMustEqualTotal);
+                    toast.error(t.streetPaidMustEqualTotal);
                     return;
                 }
             }
             else if (paidNum > orderTotal + 1e-6) {
-                toast.error(t.suppPaidExceedsTotal);
+                toast.error(t.streetPaidExceedsTotal);
                 return;
             }
         }
-        const ok = replaceSupplierPurchaseBatch(batch.batchId, {
-            supplierId: sid,
+        const ok = replaceStreetPurchaseBatch(batch.batchId, {
+            streetObjectId: sid,
             incomeDate,
             notes: notes.trim() || undefined,
             onCredit,
@@ -237,27 +237,27 @@ export function SupplierPurchaseEditDialog({ batch, open, onOpenChange, warehous
             lines: resolved,
         });
         if (!ok) {
-            toast.error(t.suppPurchaseCannotReverse);
+            toast.error(t.streetPurchaseCannotReverse);
             return;
         }
-        toast.success(t.suppPurchaseUpdated);
+        toast.success(t.streetPurchaseUpdated);
         onOpenChange(false);
     };
     const handleDelete = () => {
         if (!batch)
             return;
-        const ok = deleteSupplierPurchaseBatch(batch.batchId);
+        const ok = deleteStreetPurchaseBatch(batch.batchId);
         if (!ok) {
-            toast.error(t.suppPurchaseCannotReverse);
+            toast.error(t.streetPurchaseCannotReverse);
             return;
         }
-        toast.success(t.suppPurchaseDeleted);
+        toast.success(t.streetPurchaseDeleted);
         setConfirmDelete(false);
         onOpenChange(false);
     };
     if (!batch)
         return null;
-    return (_jsxs(Dialog, { open: open, onOpenChange: onOpenChange, children: [_jsxs(DialogContent, { className: "max-h-[90vh] overflow-y-auto sm:max-w-xl", children: [_jsxs(DialogHeader, { children: [_jsx(DialogTitle, { children: t.suppEditPurchaseTitle }), _jsxs("p", { className: "text-xs text-slate-500", children: [formatDate(batch.incomeDate), " \u00B7 ", batch.supplierName, " \u00B7 ", batch.lines.length, ' ', t.suppHistoryProductCount] })] }), _jsxs("div", { className: "space-y-4", children: [_jsxs("div", { children: [_jsxs(Label, { children: [t.suppPurchasePickSupplier, " *"] }), _jsxs(Select, { value: supplierId || undefined, onValueChange: setSupplierId, children: [_jsx(SelectTrigger, { className: "mt-1.5", children: _jsx(SelectValue, { placeholder: t.suppPurchasePickSupplier }) }), _jsx(SelectContent, { children: state.suppliers.map((s) => (_jsx(SelectItem, { value: s.id, children: s.fullName }, s.id))) })] })] }), _jsxs("div", { children: [_jsx(Label, { children: t.whIncomeDate }), _jsx(Input, { type: "date", value: incomeDate, onChange: (e) => setIncomeDate(e.target.value), className: "mt-1.5 max-w-[12rem]" })] }), _jsxs("div", { className: "space-y-2", children: [_jsx(Label, { children: t.suppPurchaseLinesTitle }), (() => {
+    return (_jsxs(Dialog, { open: open, onOpenChange: onOpenChange, children: [_jsxs(DialogContent, { className: "max-h-[90vh] overflow-y-auto sm:max-w-xl", children: [_jsxs(DialogHeader, { children: [_jsx(DialogTitle, { children: t.streetEditPurchaseTitle }), _jsxs("p", { className: "text-xs text-slate-500", children: [formatDate(batch.incomeDate), " \u00B7 ", batch.streetObjectName, " \u00B7 ", batch.lines.length, ' ', t.streetHistoryProductCount] })] }), _jsxs("div", { className: "space-y-4", children: [_jsxs("div", { children: [_jsxs(Label, { children: [t.streetPurchasePickSupplier, " *"] }), _jsxs(Select, { value: streetObjectId || undefined, onValueChange: setStreetObjectId, children: [_jsx(SelectTrigger, { className: "mt-1.5", children: _jsx(SelectValue, { placeholder: t.streetPurchasePickSupplier }) }), _jsx(SelectContent, { children: state.streetObjects.map((s) => (_jsx(SelectItem, { value: s.id, children: s.fullName }, s.id))) })] })] }), _jsxs("div", { children: [_jsx(Label, { children: t.whIncomeDate }), _jsx(Input, { type: "date", value: incomeDate, onChange: (e) => setIncomeDate(e.target.value), className: "mt-1.5 max-w-[12rem]" })] }), _jsxs("div", { className: "space-y-2", children: [_jsx(Label, { children: t.streetPurchaseLinesTitle }), (() => {
                                         const editingLine = draftLines.find((l) => l.key === editingKey) ?? draftLines[draftLines.length - 1];
                                         const collapsedLines = draftLines.filter((l) => l.key !== editingLine?.key);
                                         const { w: editW, lineTotal: editTotal } = editingLine
@@ -273,6 +273,6 @@ export function SupplierPurchaseEditDialog({ batch, open, onOpenChange, warehous
                                                                     warehouseItemId: v,
                                                                     pricePerUnit: prefPrice(item),
                                                                 });
-                                                            }, children: [_jsx(SelectTrigger, { className: "rounded-xl", children: _jsx(SelectValue, {}) }), _jsx(SelectContent, { className: "max-h-72", children: warehouseOptions.map((opt) => (_jsx(SelectItem, { value: opt.id, children: warehouseSessionLabel(opt) }, opt.id))) })] }), _jsxs("div", { className: "grid gap-2 sm:grid-cols-2", children: [_jsx(CumulativeQuantityField, { label: _jsxs(_Fragment, { children: [t.whQuantity, " *"] }), quantity: editingLine.quantity, qtyParts: editingLine.qtyParts, unit: editW?.unit ?? 'kg', unitLabel: editW?.unit === 'pcs' ? t.unitPcs : 'kg', runningTotalLabel: t.suppQtyRunningTotal, addAriaLabel: t.suppQtyAddPart, placeholder: editW?.unit === 'kg' ? '2,3' : '5', pcsHint: editW?.unit === 'pcs' ? t.suppPurchasePcsWhole : undefined, onQuantityChange: (value) => updateDraftLine(editingLine.key, { quantity: value }), onAddPart: () => appendDraftQtyPart(editingLine.key) }), _jsxs("div", { children: [_jsx(Label, { className: "text-xs", children: t.suppPricePerUnit }), _jsx(Input, { value: editingLine.pricePerUnit, onChange: (e) => updateDraftLine(editingLine.key, { pricePerUnit: e.target.value }), className: "mt-1 rounded-xl", inputMode: "decimal" })] })] }), _jsxs("p", { className: "text-xs", children: [t.suppLineTotal, ":", ' ', _jsx("span", { className: "nums font-semibold", children: editTotal != null ? `${formatNumber(editTotal)} so'm` : '—' })] })] })), _jsxs(Button, { type: "button", variant: "outline", size: "sm", className: "w-full rounded-xl", onClick: commitDraftLineAndAddNext, children: [_jsx(Plus, { size: 14, className: "mr-1.5" }), t.suppAddPurchaseLine] })] }));
-                                    })()] }), _jsxs("div", { className: "rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/40", children: [_jsx("p", { className: "text-xs text-slate-500", children: t.suppPurchaseGrandTotal }), _jsx("p", { className: "nums text-lg font-semibold", children: orderTotal != null ? `${formatNumber(orderTotal)} so'm` : '—' })] }), _jsxs("div", { children: [_jsxs(Label, { children: [t.suppPaidAmount, orderTotal != null ? ' *' : ''] }), _jsx(Input, { value: paidAmount, onChange: (e) => setPaidAmount(e.target.value), className: "mt-1.5", disabled: orderTotal == null || !onCredit, inputMode: "decimal" }), onCredit && orderTotal != null && debtPreview != null && (_jsxs("p", { className: "mt-1 text-xs text-amber-700 dark:text-amber-300", children: [t.suppDebtPreview, ": ", formatNumber(debtPreview), " so'm"] }))] }), _jsxs("label", { className: "flex cursor-pointer items-start gap-3 rounded-lg border p-3 dark:border-slate-700", children: [_jsx("input", { type: "checkbox", className: "mt-0.5 h-4 w-4", checked: onCredit, onChange: (e) => setOnCredit(e.target.checked) }), _jsx("span", { className: "text-sm", children: t.suppOnCredit })] }), _jsxs("div", { children: [_jsx(Label, { children: t.notes }), _jsx(Input, { value: notes, onChange: (e) => setNotes(e.target.value), className: "mt-1.5" })] }), _jsx("p", { className: "text-xs text-slate-500", children: t.suppPurchaseReverseHint })] }), _jsxs(DialogFooter, { className: "flex-wrap gap-2 sm:justify-between", children: [_jsx(Button, { type: "button", variant: "outline", className: "text-red-600", onClick: () => setConfirmDelete(true), children: t.delete }), _jsxs("div", { className: "flex gap-2", children: [_jsx(Button, { type: "button", variant: "outline", onClick: () => onOpenChange(false), children: t.cancel }), _jsx(Button, { type: "button", onClick: handleSave, children: t.save })] })] })] }), _jsx(AlertDialog, { open: confirmDelete, onOpenChange: setConfirmDelete, children: _jsxs(AlertDialogContent, { children: [_jsxs(AlertDialogHeader, { children: [_jsx(AlertDialogTitle, { children: t.delete }), _jsx(AlertDialogDescription, { children: t.suppDeletePurchaseConfirm })] }), _jsxs(AlertDialogFooter, { children: [_jsx(AlertDialogCancel, { children: t.cancel }), _jsx(AlertDialogAction, { onClick: handleDelete, children: t.delete })] })] }) })] }));
+                                                            }, children: [_jsx(SelectTrigger, { className: "rounded-xl", children: _jsx(SelectValue, {}) }), _jsx(SelectContent, { className: "max-h-72", children: warehouseOptions.map((opt) => (_jsx(SelectItem, { value: opt.id, children: warehouseSessionLabel(opt) }, opt.id))) })] }), _jsxs("div", { className: "grid gap-2 sm:grid-cols-2", children: [_jsx(CumulativeQuantityField, { label: _jsxs(_Fragment, { children: [t.whQuantity, " *"] }), quantity: editingLine.quantity, qtyParts: editingLine.qtyParts, unit: editW?.unit ?? 'kg', unitLabel: editW?.unit === 'pcs' ? t.unitPcs : 'kg', runningTotalLabel: t.streetQtyRunningTotal, addAriaLabel: t.streetQtyAddPart, placeholder: editW?.unit === 'kg' ? '2,3' : '5', pcsHint: editW?.unit === 'pcs' ? t.streetPurchasePcsWhole : undefined, onQuantityChange: (value) => updateDraftLine(editingLine.key, { quantity: value }), onAddPart: () => appendDraftQtyPart(editingLine.key) }), _jsxs("div", { children: [_jsx(Label, { className: "text-xs", children: t.streetPricePerUnit }), _jsx(Input, { value: editingLine.pricePerUnit, onChange: (e) => updateDraftLine(editingLine.key, { pricePerUnit: e.target.value }), className: "mt-1 rounded-xl", inputMode: "decimal" })] })] }), _jsxs("p", { className: "text-xs", children: [t.streetLineTotal, ":", ' ', _jsx("span", { className: "nums font-semibold", children: editTotal != null ? `${formatNumber(editTotal)} so'm` : '—' })] })] })), _jsxs(Button, { type: "button", variant: "outline", size: "sm", className: "w-full rounded-xl", onClick: commitDraftLineAndAddNext, children: [_jsx(Plus, { size: 14, className: "mr-1.5" }), t.streetAddPurchaseLine] })] }));
+                                    })()] }), _jsxs("div", { className: "rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/40", children: [_jsx("p", { className: "text-xs text-slate-500", children: t.streetPurchaseGrandTotal }), _jsx("p", { className: "nums text-lg font-semibold", children: orderTotal != null ? `${formatNumber(orderTotal)} so'm` : '—' })] }), _jsxs("div", { children: [_jsxs(Label, { children: [t.streetPaidAmount, orderTotal != null ? ' *' : ''] }), _jsx(Input, { value: paidAmount, onChange: (e) => setPaidAmount(e.target.value), className: "mt-1.5", disabled: orderTotal == null || !onCredit, inputMode: "decimal" }), onCredit && orderTotal != null && debtPreview != null && (_jsxs("p", { className: "mt-1 text-xs text-amber-700 dark:text-amber-300", children: [t.streetDebtPreview, ": ", formatNumber(debtPreview), " so'm"] }))] }), _jsxs("label", { className: "flex cursor-pointer items-start gap-3 rounded-lg border p-3 dark:border-slate-700", children: [_jsx("input", { type: "checkbox", className: "mt-0.5 h-4 w-4", checked: onCredit, onChange: (e) => setOnCredit(e.target.checked) }), _jsx("span", { className: "text-sm", children: t.streetOnCredit })] }), _jsxs("div", { children: [_jsx(Label, { children: t.notes }), _jsx(Input, { value: notes, onChange: (e) => setNotes(e.target.value), className: "mt-1.5" })] }), _jsx("p", { className: "text-xs text-slate-500", children: t.streetPurchaseReverseHint })] }), _jsxs(DialogFooter, { className: "flex-wrap gap-2 sm:justify-between", children: [_jsx(Button, { type: "button", variant: "outline", className: "text-red-600", onClick: () => setConfirmDelete(true), children: t.delete }), _jsxs("div", { className: "flex gap-2", children: [_jsx(Button, { type: "button", variant: "outline", onClick: () => onOpenChange(false), children: t.cancel }), _jsx(Button, { type: "button", onClick: handleSave, children: t.save })] })] })] }), _jsx(AlertDialog, { open: confirmDelete, onOpenChange: setConfirmDelete, children: _jsxs(AlertDialogContent, { children: [_jsxs(AlertDialogHeader, { children: [_jsx(AlertDialogTitle, { children: t.delete }), _jsx(AlertDialogDescription, { children: t.streetDeletePurchaseConfirm })] }), _jsxs(AlertDialogFooter, { children: [_jsx(AlertDialogCancel, { children: t.cancel }), _jsx(AlertDialogAction, { onClick: handleDelete, children: t.delete })] })] }) })] }));
 }

@@ -60,6 +60,7 @@ const EMPTY_PRODUCT = {
     initialQty: '',
     incomeDate: TODAY,
     purchasePrice: '',
+    streetPurchasePrice: '',
     salePrice: '',
     notes: '',
 };
@@ -95,6 +96,10 @@ function ProductDialog({ open, onOpenChange, editing, categorySuggestions, }) {
                     purchasePrice: editing.purchasePricePerUnit != null && Number.isFinite(editing.purchasePricePerUnit)
                         ? String(editing.purchasePricePerUnit)
                         : '',
+                    streetPurchasePrice: editing.streetPurchasePricePerUnit != null &&
+                        Number.isFinite(editing.streetPurchasePricePerUnit)
+                        ? String(editing.streetPurchasePricePerUnit)
+                        : '',
                     salePrice: editing.salePricePerUnit != null && Number.isFinite(editing.salePricePerUnit)
                         ? String(editing.salePricePerUnit)
                         : '',
@@ -127,8 +132,9 @@ function ProductDialog({ open, onOpenChange, editing, categorySuggestions, }) {
             return;
         }
         const parsedPurchase = parseOptionalMoney(form.purchasePrice);
+        const parsedStreetPurchase = parseOptionalMoney(form.streetPurchasePrice);
         const parsedSale = parseOptionalMoney(form.salePrice);
-        if (!parsedPurchase.ok || !parsedSale.ok) {
+        if (!parsedPurchase.ok || !parsedStreetPurchase.ok || !parsedSale.ok) {
             toast.error(t.whValidateOptionalPrice);
             return;
         }
@@ -158,6 +164,7 @@ function ProductDialog({ open, onOpenChange, editing, categorySuggestions, }) {
                     incomeDate: form.incomeDate,
                     notes: form.notes.trim() || undefined,
                     purchasePricePerUnit: parsedPurchase.value,
+                    streetPurchasePricePerUnit: parsedStreetPurchase.value,
                     salePricePerUnit: parsedSale.value,
                 });
                 toast.success(t.save);
@@ -210,6 +217,7 @@ function ProductDialog({ open, onOpenChange, editing, categorySuggestions, }) {
                     incomeDate: form.incomeDate,
                     notes: form.notes.trim() || undefined,
                     purchasePricePerUnit: parsedPurchase.value,
+                    streetPurchasePricePerUnit: parsedStreetPurchase.value,
                     salePricePerUnit: parsedSale.value,
                 };
                 if (parsedSplits.length > 0) {
@@ -261,6 +269,7 @@ function ProductDialog({ open, onOpenChange, editing, categorySuggestions, }) {
                 source: 'EXTERNAL',
                 parentWarehouseId: null,
                 purchasePricePerUnit: parsedPurchase.value,
+                streetPurchasePricePerUnit: parsedStreetPurchase.value,
                 salePricePerUnit: parsedSale.value,
             }, parsedSplits);
             toast.success(t.add);
@@ -283,7 +292,7 @@ function ProductDialog({ open, onOpenChange, editing, categorySuggestions, }) {
                                                         }, className: cn('flex flex-col items-center gap-1 rounded-lg border p-1.5 transition-colors', selected
                                                             ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-500/30 dark:border-violet-400 dark:bg-violet-950/40'
                                                             : 'border-slate-200 hover:border-slate-300 dark:border-slate-600 dark:hover:border-slate-500'), children: [_jsx(CategoryProductIcon, { iconKey: opt.id, size: "lg" }), _jsx("span", { className: "max-w-full truncate text-center text-[9px] leading-tight text-slate-500 dark:text-slate-400", children: productIconPickerLabel(opt.id, t) })] }, opt.id));
-                                                }) })] }, group))) })] }), _jsxs("div", { className: "grid grid-cols-1 gap-4 sm:grid-cols-2", children: [_jsxs("div", { children: [_jsxs(Label, { children: [t.whQuantity, editing ? '' : ' *'] }), _jsx(Input, { value: form.initialQty, onChange: (e) => setForm((f) => ({ ...f, initialQty: e.target.value })), placeholder: "0", inputMode: "decimal", className: "mt-1.5" }), _jsx("p", { className: "mt-1 text-[11px] text-slate-500 dark:text-slate-400", children: editing ? t.whQtyOptionalWhenEdit : t.whValidateQtyPositive })] }), _jsxs("div", { children: [_jsx(Label, { children: t.whIncomeDate }), _jsx(Input, { type: "date", value: form.incomeDate, onChange: (e) => setForm((f) => ({ ...f, incomeDate: e.target.value })), className: "mt-1.5" })] })] }), _jsxs("div", { className: "grid grid-cols-1 gap-4 sm:grid-cols-2", children: [_jsxs("div", { children: [_jsx(Label, { children: t.whPurchasePricePerUnit }), _jsx(Input, { value: form.purchasePrice, onChange: (e) => setForm((f) => ({ ...f, purchasePrice: e.target.value })), placeholder: "0", inputMode: "decimal", className: "mt-1.5" })] }), _jsxs("div", { children: [_jsx(Label, { children: t.whSalePricePerUnit }), _jsx(Input, { value: form.salePrice, onChange: (e) => setForm((f) => ({ ...f, salePrice: e.target.value })), placeholder: "0", inputMode: "decimal", className: "mt-1.5" })] })] }), (!editing || (editing && !editing.parentWarehouseId)) && (_jsxs("div", { className: "rounded-lg border border-slate-200 p-3 dark:border-slate-600", children: [_jsxs("div", { className: "mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between", children: [_jsx(Label, { className: "text-sm font-medium", children: t.whSplitsSection }), _jsx(Button, { type: "button", variant: "outline", size: "sm", className: "shrink-0", onClick: () => setSplits((s) => [...s, { id: uid('spl'), name: '', qty: '' }]), children: t.whAddSplitRow })] }), _jsx("p", { className: "mb-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400", children: editing && !editing.parentWarehouseId ? t.whSplitsOnEditParent : t.whWhereSubcategoryHint }), splits.length === 0 ? (_jsx("p", { className: "text-xs text-slate-400 dark:text-slate-500", children: t.whSplitsEmpty })) : (_jsx("div", { className: "space-y-2", children: splits.map((row) => (_jsxs("div", { className: "flex flex-wrap items-end gap-2", children: [_jsxs("div", { className: "min-w-0 flex-1", children: [_jsx(Label, { className: "text-xs", children: t.whSubProductName }), _jsx(Input, { value: row.name, onChange: (e) => setSplits((s) => s.map((r) => (r.id === row.id ? { ...r, name: e.target.value } : r))), className: "mt-1", placeholder: t.whCategoryPlaceholder })] }), _jsxs("div", { className: "w-28", children: [_jsx(Label, { className: "text-xs", children: t.whQuantity }), _jsx(Input, { value: row.qty, onChange: (e) => setSplits((s) => s.map((r) => (r.id === row.id ? { ...r, qty: e.target.value } : r))), className: "mt-1", placeholder: "0", inputMode: "decimal" })] }), _jsx(Button, { type: "button", variant: "ghost", size: "sm", className: "mb-0.5 shrink-0 text-red-600 hover:text-red-700", onClick: () => setSplits((s) => s.filter((r) => r.id !== row.id)), children: t.whRemoveSplitRow })] }, row.id))) }))] })), _jsxs("div", { children: [_jsx(Label, { children: t.notes }), _jsx(Input, { value: form.notes, onChange: (e) => setForm((f) => ({ ...f, notes: e.target.value })), className: "mt-1.5" })] }), _jsxs(DialogFooter, { children: [_jsx(Button, { type: "button", variant: "outline", onClick: () => onOpenChange(false), children: t.cancel }), _jsx(Button, { type: "submit", children: t.save })] })] })] }) }));
+                                                }) })] }, group))) })] }), _jsxs("div", { className: "grid grid-cols-1 gap-4 sm:grid-cols-2", children: [_jsxs("div", { children: [_jsxs(Label, { children: [t.whQuantity, editing ? '' : ' *'] }), _jsx(Input, { value: form.initialQty, onChange: (e) => setForm((f) => ({ ...f, initialQty: e.target.value })), placeholder: "0", inputMode: "decimal", className: "mt-1.5" }), _jsx("p", { className: "mt-1 text-[11px] text-slate-500 dark:text-slate-400", children: editing ? t.whQtyOptionalWhenEdit : t.whValidateQtyPositive })] }), _jsxs("div", { children: [_jsx(Label, { children: t.whIncomeDate }), _jsx(Input, { type: "date", value: form.incomeDate, onChange: (e) => setForm((f) => ({ ...f, incomeDate: e.target.value })), className: "mt-1.5" })] })] }), _jsxs("div", { className: "grid grid-cols-1 gap-4 sm:grid-cols-2", children: [_jsxs("div", { children: [_jsx(Label, { children: t.whPurchasePricePerUnit }), _jsx(Input, { value: form.purchasePrice, onChange: (e) => setForm((f) => ({ ...f, purchasePrice: e.target.value })), placeholder: "0", inputMode: "decimal", className: "mt-1.5" })] }), _jsxs("div", { children: [_jsx(Label, { children: t.whStreetPurchasePricePerUnit }), _jsx(Input, { value: form.streetPurchasePrice, onChange: (e) => setForm((f) => ({ ...f, streetPurchasePrice: e.target.value })), placeholder: "0", inputMode: "decimal", className: "mt-1.5" })] }), _jsxs("div", { className: "sm:col-span-2", children: [_jsx(Label, { children: t.whSalePricePerUnit }), _jsx(Input, { value: form.salePrice, onChange: (e) => setForm((f) => ({ ...f, salePrice: e.target.value })), placeholder: "0", inputMode: "decimal", className: "mt-1.5" })] })] }), (!editing || (editing && !editing.parentWarehouseId)) && (_jsxs("div", { className: "rounded-lg border border-slate-200 p-3 dark:border-slate-600", children: [_jsxs("div", { className: "mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between", children: [_jsx(Label, { className: "text-sm font-medium", children: t.whSplitsSection }), _jsx(Button, { type: "button", variant: "outline", size: "sm", className: "shrink-0", onClick: () => setSplits((s) => [...s, { id: uid('spl'), name: '', qty: '' }]), children: t.whAddSplitRow })] }), _jsx("p", { className: "mb-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400", children: editing && !editing.parentWarehouseId ? t.whSplitsOnEditParent : t.whWhereSubcategoryHint }), splits.length === 0 ? (_jsx("p", { className: "text-xs text-slate-400 dark:text-slate-500", children: t.whSplitsEmpty })) : (_jsx("div", { className: "space-y-2", children: splits.map((row) => (_jsxs("div", { className: "flex flex-wrap items-end gap-2", children: [_jsxs("div", { className: "min-w-0 flex-1", children: [_jsx(Label, { className: "text-xs", children: t.whSubProductName }), _jsx(Input, { value: row.name, onChange: (e) => setSplits((s) => s.map((r) => (r.id === row.id ? { ...r, name: e.target.value } : r))), className: "mt-1", placeholder: t.whCategoryPlaceholder })] }), _jsxs("div", { className: "w-28", children: [_jsx(Label, { className: "text-xs", children: t.whQuantity }), _jsx(Input, { value: row.qty, onChange: (e) => setSplits((s) => s.map((r) => (r.id === row.id ? { ...r, qty: e.target.value } : r))), className: "mt-1", placeholder: "0", inputMode: "decimal" })] }), _jsx(Button, { type: "button", variant: "ghost", size: "sm", className: "mb-0.5 shrink-0 text-red-600 hover:text-red-700", onClick: () => setSplits((s) => s.filter((r) => r.id !== row.id)), children: t.whRemoveSplitRow })] }, row.id))) }))] })), _jsxs("div", { children: [_jsx(Label, { children: t.notes }), _jsx(Input, { value: form.notes, onChange: (e) => setForm((f) => ({ ...f, notes: e.target.value })), className: "mt-1.5" })] }), _jsxs(DialogFooter, { children: [_jsx(Button, { type: "button", variant: "outline", onClick: () => onOpenChange(false), children: t.cancel }), _jsx(Button, { type: "submit", children: t.save })] })] })] }) }));
 }
 // ============================================================================
 // MAIN

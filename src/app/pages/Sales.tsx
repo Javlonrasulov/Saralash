@@ -11,13 +11,17 @@ import {
   Pencil,
   CheckCircle2,
   ShoppingBag,
+  Banknote,
+  CreditCard,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useStore,
   getAvailableKgForWarehouseSale,
+  resolveOrderPaymentMethod,
   type CategoryKey,
   type Customer,
+  type PosPaymentMethod,
   type WarehouseOutcome,
 } from '../store/saralash-store';
 import { useApp } from '../i18n/app-context';
@@ -98,6 +102,7 @@ export function Sales() {
   const [addQty, setAddQty] = useState('1');
   const [addPrice, setAddPrice] = useState('');
   const [paidInput, setPaidInput] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('CASH');
 
   const [historySearch, setHistorySearch] = useState('');
   const [historyOrderId, setHistoryOrderId] = useState<string | null>(null);
@@ -199,7 +204,10 @@ export function Sales() {
       const total = lines.reduce((s, l) => s + (l.totalAmount ?? 0), 0);
       const paid = first.orderPaidTotal != null ? first.orderPaidTotal : total;
       const debt = Math.max(0, total - paid);
-      return { orderId, lines, first, buyer, products, total, paid, debt };
+      const method = resolveOrderPaymentMethod(first);
+      const cashPaid = method === 'CASH' ? paid : 0;
+      const cardPaid = method === 'CARD' ? paid : 0;
+      return { orderId, lines, first, buyer, products, total, paid, debt, method, cashPaid, cardPaid };
     });
     rows.sort((a, b) => b.first.date.localeCompare(a.first.date));
     if (!q) return rows;
@@ -210,6 +218,40 @@ export function Sales() {
         r.orderId.toLowerCase().includes(q),
     );
   }, [soldInRange, historySearch, customerNames]);
+
+  /** Navbar kalendari oralig‘i bo‘yicha: mahsulot kg + naqd/plastik jami */
+  const periodSoldStats = useMemo(() => {
+    const orderMap = new Map<string, WarehouseOutcome[]>();
+    for (const o of soldInRange) {
+      const k = o.posOrderId ?? o.id;
+      if (!orderMap.has(k)) orderMap.set(k, []);
+      orderMap.get(k)!.push(o);
+    }
+    const productKg = new Map<string, number>();
+    let cashPaid = 0;
+    let cardPaid = 0;
+    let totalSales = 0;
+    for (const lines of orderMap.values()) {
+      const first = lines[0];
+      const orderTotal = lines.reduce((s, l) => s + (l.totalAmount ?? 0), 0);
+      const paid =
+        first.orderPaidTotal != null && Number.isFinite(first.orderPaidTotal)
+          ? Math.max(0, Math.min(first.orderPaidTotal, orderTotal))
+          : orderTotal;
+      totalSales += orderTotal;
+      if (resolveOrderPaymentMethod(first) === 'CARD') cardPaid += paid;
+      else cashPaid += paid;
+      for (const l of lines) {
+        if (l.unit === 'kg') {
+          productKg.set(l.productName, (productKg.get(l.productName) ?? 0) + l.quantity);
+        }
+      }
+    }
+    const products = [...productKg.entries()]
+      .map(([name, kg]) => ({ name, kg }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'uz'));
+    return { products, cashPaid, cardPaid, totalSales, orderCount: orderMap.size };
+  }, [soldInRange]);
 
   const historyDetailGroup = useMemo(
     () => (historyOrderId ? historyGroups.find((g) => g.orderId === historyOrderId) ?? null : null),
@@ -329,6 +371,7 @@ export function Sales() {
       customerId: cust.id,
       customerName: cust.fullName,
       paidAmount: paid,
+      paymentMethod,
       lines: cart.map((l) => ({
         warehouseItemId: l.warehouseItemId,
         quantity: l.qty,
@@ -585,6 +628,31 @@ export function Sales() {
               <Card className="border-slate-200 p-4 shadow-sm dark:border-slate-700">
                 <h3 className="text-sm font-semibold text-slate-800 dark:text-white">{t.posPayment}</h3>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t.posPaymentDebtHint}</p>
+                <div className="mt-3">
+                  <Label className="text-xs">{t.posPaymentMethod}</Label>
+                  <div className="mt-1.5 grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={paymentMethod === 'CASH' ? 'default' : 'outline'}
+                      className={`h-10 rounded-xl ${paymentMethod === 'CASH' ? 'bg-sky-500 hover:bg-sky-600' : ''}`}
+                      onClick={() => setPaymentMethod('CASH')}
+                      disabled={!cart.length}
+                    >
+                      <Banknote size={16} className="mr-1.5 shrink-0" />
+                      {t.posPaymentCash}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={paymentMethod === 'CARD' ? 'default' : 'outline'}
+                      className={`h-10 rounded-xl ${paymentMethod === 'CARD' ? 'bg-violet-500 hover:bg-violet-600' : ''}`}
+                      onClick={() => setPaymentMethod('CARD')}
+                      disabled={!cart.length}
+                    >
+                      <CreditCard size={16} className="mr-1.5 shrink-0" />
+                      {t.posPaymentCard}
+                    </Button>
+                  </div>
+                </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
                   <div>
                     <Label className="text-xs">{t.posCheckoutTotal}</Label>
@@ -793,6 +861,50 @@ export function Sales() {
               className="max-w-md rounded-xl"
             />
           </Card>
+          {periodSoldStats.orderCount > 0 && (
+            <Card className="border-slate-200 p-4 shadow-sm dark:border-slate-700">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
+                    {t.posPeriodProductSummary}
+                  </h3>
+                  <ul className="mt-3 space-y-1.5">
+                    {periodSoldStats.products.map((p) => (
+                      <li
+                        key={p.name}
+                        className="flex items-center justify-between gap-2 text-sm text-slate-700 dark:text-slate-200"
+                      >
+                        <span className="min-w-0 truncate">{p.name}</span>
+                        <span className="nums shrink-0 font-medium">{formatNumber(p.kg)} kg</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
+                    {t.posPeriodPaymentSummary}
+                  </h3>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-sky-50/60 px-3 py-2 dark:border-slate-700 dark:bg-sky-950/20">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">{t.posHistoryPaidCash}</span>
+                      <span className="nums font-semibold text-sky-700 dark:text-sky-300">
+                        {formatNumber(periodSoldStats.cashPaid)} so'm
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-violet-50/60 px-3 py-2 dark:border-slate-700 dark:bg-violet-950/20">
+                      <span className="text-sm text-slate-600 dark:text-slate-300">{t.posHistoryPaidCard}</span>
+                      <span className="nums font-semibold text-violet-700 dark:text-violet-300">
+                        {formatNumber(periodSoldStats.cardPaid)} so'm
+                      </span>
+                    </div>
+                    <p className="pt-1 text-[11px] text-slate-400">
+                      {periodSoldStats.orderCount} {t.posStatOperations} · {formatNumber(periodSoldStats.totalSales)} so'm
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
           <Card className="hidden overflow-hidden border-slate-200 shadow-sm dark:border-slate-700 md:block">
             <Table>
               <TableHeader>
@@ -801,14 +913,15 @@ export function Sales() {
                   <TableHead>{t.whBuyer}</TableHead>
                   <TableHead>{t.whProductName}</TableHead>
                   <TableHead className="text-right">{t.salesAmount}</TableHead>
-                  <TableHead className="text-right">{t.posPaidLabel}</TableHead>
+                  <TableHead className="text-right">{t.posHistoryPaidCash}</TableHead>
+                  <TableHead className="text-right">{t.posHistoryPaidCard}</TableHead>
                   <TableHead className="text-right">{t.posDebtLabel}</TableHead>
                   <TableHead className="w-[5.5rem] text-right">{t.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {historyGroups.length === 0 ? (
-                  <TableEmpty colSpan={7} message={t.posNoHistory} />
+                  <TableEmpty colSpan={8} message={t.posNoHistory} />
                 ) : (
                   historyGroups.map((g) => (
                     <TableRow
@@ -830,8 +943,11 @@ export function Sales() {
                       <TableCell className="nums text-right font-medium">
                         {formatNumber(g.total)} so'm
                       </TableCell>
-                      <TableCell className="nums text-right text-slate-700 dark:text-slate-200">
-                        {formatNumber(g.paid)} so'm
+                      <TableCell className="nums text-right text-sky-700 dark:text-sky-300">
+                        {g.cashPaid > 0.01 ? `${formatNumber(g.cashPaid)} so'm` : '—'}
+                      </TableCell>
+                      <TableCell className="nums text-right text-violet-700 dark:text-violet-300">
+                        {g.cardPaid > 0.01 ? `${formatNumber(g.cardPaid)} so'm` : '—'}
                       </TableCell>
                       <TableCell
                         className={`nums text-right ${g.debt > 0.01 ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}
@@ -925,8 +1041,16 @@ export function Sales() {
                       <span className="nums font-semibold">{formatNumber(g.total)} so'm</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">{t.posPaidLabel}</span>
-                      <span className="nums">{formatNumber(g.paid)} so'm</span>
+                      <span className="text-slate-500">{t.posHistoryPaidCash}</span>
+                      <span className="nums text-sky-700 dark:text-sky-300">
+                        {g.cashPaid > 0.01 ? `${formatNumber(g.cashPaid)} so'm` : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">{t.posHistoryPaidCard}</span>
+                      <span className="nums text-violet-700 dark:text-violet-300">
+                        {g.cardPaid > 0.01 ? `${formatNumber(g.cardPaid)} so'm` : '—'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">{t.posDebtLabel}</span>

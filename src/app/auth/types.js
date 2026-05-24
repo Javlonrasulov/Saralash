@@ -12,6 +12,8 @@ export function pathnameToRouteKey(pathname) {
         return 'sales';
     if (pathname.startsWith('/customers'))
         return 'customers';
+    if (pathname.startsWith('/street-objects'))
+        return 'streetObjects';
     if (pathname.startsWith('/suppliers'))
         return 'suppliers';
     if (pathname.startsWith('/expenses'))

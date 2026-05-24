@@ -2,7 +2,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { NavLink, Outlet, useLocation } from 'react-router';
-import { LayoutDashboard, Recycle, Boxes, Users, UserCog, Receipt, Truck, Wallet, Sun, Moon, LogOut, Menu, X, Globe, ChevronDown, ChevronLeft, ChevronRight, Check, Eye, EyeOff, BarChart3, User as UserIcon, Minus, Plus, Type, } from 'lucide-react';
+import { LayoutDashboard, Recycle, Boxes, Users, UserCog, Receipt, Truck, MapPin, Wallet, Sun, Moon, LogOut, Menu, X, Globe, ChevronDown, ChevronLeft, ChevronRight, Check, Eye, EyeOff, BarChart3, User as UserIcon, Minus, Plus, Type, } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useApp } from '../i18n/app-context';
 import { useFontScale } from '../context/font-scale-context';
@@ -137,6 +137,13 @@ export function Layout() {
         { path: '/sales', icon: Receipt, label: t.navSales, exact: false, key: 'sales' },
         { path: '/customers', icon: Users, label: t.navCustomers, exact: false, key: 'customers' },
         { path: '/suppliers', icon: Truck, label: t.navSuppliers, exact: false, key: 'suppliers' },
+        {
+            path: '/street-objects',
+            icon: MapPin,
+            label: t.navStreetObjects,
+            exact: false,
+            key: 'streetObjects',
+        },
         { path: '/expenses', icon: Wallet, label: t.navExpenses, exact: false, key: 'expenses' },
         { path: '/statistics', icon: BarChart3, label: t.navStatistics, exact: false, key: 'statistics' },
         { path: '/users', icon: UserCog, label: t.navSystemUsers, exact: false, key: 'users' },
@@ -154,6 +161,7 @@ export function Layout() {
         '/sales': t.salesTitle,
         '/customers': t.custTitle,
         '/suppliers': t.suppTitle,
+        '/street-objects': t.streetTitle,
         '/expenses': t.expTitle,
         '/statistics': t.statTitle,
         '/users': t.usersTitle,

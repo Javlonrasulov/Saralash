@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { Trash2, Banknote, CreditCard } from 'lucide-react';
 import {
   getAvailableKgForWarehouseSale,
+  resolveOrderPaymentMethod,
   useStore,
+  type PosPaymentMethod,
   type WarehouseItem,
   type WarehouseOutcome,
 } from '../store/saralash-store';
@@ -33,7 +36,6 @@ import {
   TableRow,
 } from './ui/table';
 import { formatDate, formatMoneyInputDisplay, formatNumber, uid } from '../utils/format';
-import { Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -104,6 +106,7 @@ export function PosOrderDetailDialog({
   const [saleDate, setSaleDate] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [paidInput, setPaidInput] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PosPaymentMethod>('CASH');
   const [draftLines, setDraftLines] = useState<DraftLine[]>([]);
 
   const first = lines[0];
@@ -119,6 +122,7 @@ export function PosOrderDetailDialog({
         ? Math.round(f.orderPaidTotal)
         : lines.reduce((s, l) => s + (l.totalAmount ?? 0), 0);
     setPaidInput(formatMoneyInputDisplay(String(paid)));
+    setPaymentMethod(resolveOrderPaymentMethod(f));
     setDraftLines(
       lines.map((l) => ({
         key: uid('edit'),
@@ -201,6 +205,7 @@ export function PosOrderDetailDialog({
       customerId: cust.id,
       customerName: cust.fullName,
       paidAmount: paidClamped,
+      paymentMethod,
       lines: draftLines.map((l) => ({
         warehouseItemId: l.warehouseItemId,
         quantity: l.qty,
@@ -232,6 +237,7 @@ export function PosOrderDetailDialog({
       ? Math.max(0, Math.min(first.orderPaidTotal, viewTotal))
       : viewTotal;
   const viewDebt = Math.max(0, viewTotal - viewPaid);
+  const viewMethod = resolveOrderPaymentMethod(first);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -252,11 +258,17 @@ export function PosOrderDetailDialog({
                 <p className="font-medium text-slate-900 dark:text-white">{buyerLabel}</p>
               </div>
             </div>
-            <div className="grid gap-2 text-sm sm:grid-cols-3">
+            <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <span className="text-slate-500">{t.salesAmount}</span>
                 <p className="nums font-semibold text-slate-900 dark:text-white">
                   {formatNumber(viewTotal)} so'm
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-500">{t.posPaymentMethod}</span>
+                <p className="font-medium text-slate-900 dark:text-white">
+                  {viewMethod === 'CARD' ? t.posPaymentCard : t.posPaymentCash}
                 </p>
               </div>
               <div>
@@ -440,6 +452,30 @@ export function PosOrderDetailDialog({
             <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={addDraftLine}>
               {t.posAddOrderLine}
             </Button>
+
+            <div>
+              <Label className="text-xs">{t.posPaymentMethod}</Label>
+              <div className="mt-1.5 grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={paymentMethod === 'CASH' ? 'default' : 'outline'}
+                  className={`h-10 rounded-xl ${paymentMethod === 'CASH' ? 'bg-sky-500 hover:bg-sky-600' : ''}`}
+                  onClick={() => setPaymentMethod('CASH')}
+                >
+                  <Banknote size={16} className="mr-1.5 shrink-0" />
+                  {t.posPaymentCash}
+                </Button>
+                <Button
+                  type="button"
+                  variant={paymentMethod === 'CARD' ? 'default' : 'outline'}
+                  className={`h-10 rounded-xl ${paymentMethod === 'CARD' ? 'bg-violet-500 hover:bg-violet-600' : ''}`}
+                  onClick={() => setPaymentMethod('CARD')}
+                >
+                  <CreditCard size={16} className="mr-1.5 shrink-0" />
+                  {t.posPaymentCard}
+                </Button>
+              </div>
+            </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
               <div>

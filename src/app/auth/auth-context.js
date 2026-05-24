@@ -9,6 +9,7 @@ const ALL_ROUTES = [
     'sales',
     'customers',
     'suppliers',
+    'streetObjects',
     'expenses',
 ];
 const DEMO_USER = {

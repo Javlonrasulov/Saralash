@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { translations, type Language, type T } from './translations';
+import { translations, type Language } from './translations';
+import { extendWithStreetLabels, type TWithStreet } from './street-labels';
 
 const LANG_KEY = 'saralash_lang';
 
 interface AppContextValue {
   lang: Language;
   setLang: (lang: Language) => void;
-  t: T;
+  t: TWithStreet;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -33,7 +34,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const t = useMemo(() => translations[lang], [lang]);
+  const t = useMemo(() => extendWithStreetLabels(translations[lang], lang), [lang]);
 
   useEffect(() => {
     document.documentElement.lang = lang === 'ru' ? 'ru' : 'uz';

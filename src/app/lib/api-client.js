@@ -14,7 +14,7 @@ export function setApiTokens(at, rt) {
 }
 function mapUser(raw) {
     const routes = Array.isArray(raw.allowedRoutes) ? raw.allowedRoutes : [];
-    const allowed = routes.filter((r) => ['dashboard', 'sorting', 'warehouse', 'sales', 'customers', 'suppliers', 'expenses'].includes(String(r)));
+    const allowed = routes.filter((r) => ['dashboard', 'sorting', 'warehouse', 'sales', 'customers', 'suppliers', 'streetObjects', 'expenses'].includes(String(r)));
     const positions = Array.isArray(raw.positions)
         ? raw.positions.filter((s) => typeof s === 'string').slice(0, 20)
         : [];

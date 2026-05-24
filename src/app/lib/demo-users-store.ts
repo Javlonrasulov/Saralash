@@ -56,7 +56,7 @@ export function demoStoredToSession(u: DemoStoredUser): SessionUser {
     role: u.role,
     allowedRoutes:
       u.role === 'ADMIN'
-        ? ['dashboard', 'warehouse', 'sales', 'customers', 'suppliers', 'expenses']
+        ? ['dashboard', 'warehouse', 'sales', 'customers', 'suppliers', 'streetObjects', 'expenses']
         : u.allowedRoutes.length > 0
           ? u.allowedRoutes
           : ['dashboard'],

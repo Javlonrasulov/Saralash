@@ -11,8 +11,10 @@ export interface T {
   navWarehouse: string;
   navSales: string;
   navCustomers: string;
-  /** Ko‘cha obyektlari (xarid → ombor kirimi). */
+  /** Baza olish (xarid → ombor kirimi). */
   navSuppliers: string;
+  /** Ko‘cha obyektlari olish. */
+  navStreetObjects: string;
   /** Korxona chiqimlari (ish haqi, ijara, va h.k.). */
   navExpenses: string;
   navSystemUsers: string;
@@ -542,7 +544,8 @@ const uz_latin: T = {
   navWarehouse: 'Ombor',
   navSales: 'Sotuv',
   navCustomers: 'Klientlar (sotish)',
-  navSuppliers: 'Ko‘cha obyektlari (olish)',
+  navSuppliers: 'Baza olish',
+  navStreetObjects: "Ko'cha obyektlari olish",
   navExpenses: 'Chiqim',
   navSystemUsers: 'Tizim foydalanuvchilari',
   navSettings: 'Sozlamalar',
@@ -702,21 +705,21 @@ const uz_latin: T = {
   custDebtPayInvalid: 'Summani tekshiring (0 dan katta, qoldiqdan oshmasin)',
   custDebtPayNoDebt: 'Bu mijozda qarz yo‘q',
 
-  suppTitle: 'Ko‘cha obyektlari',
+  suppTitle: 'Baza olish',
   suppIntro:
-    'Bu yerda ko‘cha obyektlarini ro‘yxatga olasiz. «Xarid»da ombordagi mahsulot qatorini tanlab, kirim miqdorini shu qator qoldig‘iga qo‘shasiz.',
+    'Bu yerda bazalarni ro‘yxatga olasiz. «Xarid»da ombordagi mahsulot qatorini tanlab, kirim miqdorini shu qator qoldig‘iga qo‘shasiz.',
   suppDailyPurchaseSummary: 'Bugungi olingan mahsulotlar',
   suppDailyPurchaseEmpty: 'Bugun xarid qayd etilmagan',
   suppDailyPurchaseMoreHint: 'Faqat oxirgi 14 kun ko‘rsatiladi — barchasini «Xaridlar tarixi»da ko‘ring.',
-  suppName: 'Ko‘cha obyekti',
+  suppName: 'Baza',
   suppPhone: 'Telefon',
   suppAddress: 'Manzil',
-  suppAdd: 'Yangi ko‘cha obyekti',
-  suppEdit: 'Ko‘cha obyektini tahrirlash',
+  suppAdd: 'Yangi baza',
+  suppEdit: 'Bazani tahrirlash',
   suppSearchPlaceholder: 'Nom yoki telefon...',
-  suppDeleteConfirm: 'Ko‘cha obyektini o‘chirishni tasdiqlaysizmi? Ombordagi yozuvlar saqlanadi.',
+  suppDeleteConfirm: 'Bazani o‘chirishni tasdiqlaysizmi? Ombordagi yozuvlar saqlanadi.',
   suppPurchase: 'Xarid',
-  suppPurchasePickSupplier: 'Ko‘cha obyektini tanlang',
+  suppPurchasePickSupplier: 'Baza',
   suppPurchasePickParent: 'Ombordagi mahsulot',
   suppNoParentProducts: 'Omborda mahsulot yo‘q. Avval «Ombor» sahifasidan mahsulot qo‘shing.',
   suppPurchasePcsWhole: 'Dona birligi: faqat butun son (masalan 5).',
@@ -729,7 +732,7 @@ const uz_latin: T = {
   suppPurchaseGrandTotal: 'Umumiy jami',
   suppPaidAmount: 'To‘langan (so‘m)',
   suppOnCredit: 'Qarzga olish (to‘liq to‘lanmagan qismi qarz)',
-  suppDebtPreview: 'Ko‘cha obyektiga qarz',
+  suppDebtPreview: 'Bazaga qarz',
   suppPaidMustEqualTotal: 'Naqd: to‘langan summa jamiga teng bo‘lishi kerak.',
   suppPaidExceedsTotal: 'To‘langan summa jamidan oshmasligi kerak.',
   suppHistoryColPaid: 'To‘langan',
@@ -742,14 +745,14 @@ const uz_latin: T = {
   suppPurchaseSubmit: 'Omborga kirim',
   suppPurchaseSuccess: 'Omborga muvaffaqiyatli kirim qilindi',
   suppPricePerUnit: '1 birlik narxi (so‘m, ixtiyoriy)',
-  whSourceSupplier: 'Ko‘cha obyekti',
+  whSourceSupplier: 'Baza',
   suppTabSuppliers: 'Ro‘yxat',
   suppTabHistory: 'Xaridlar tarixi',
-  suppHistorySearch: 'Mahsulot, ko‘cha obyekti...',
-  suppHistoryFilterSupplier: 'Ko‘cha obyekti',
+  suppHistorySearch: 'Mahsulot, baza...',
+  suppHistoryFilterSupplier: 'Baza',
   suppHistoryAllSuppliers: 'Hammasi',
   suppHistoryColDate: 'Sana',
-  suppHistoryColSupplier: 'Ko‘cha obyekti',
+  suppHistoryColSupplier: 'Baza',
   suppHistoryColProduct: 'Mahsulot',
   suppHistoryColProducts: 'Mahsulotlar',
   suppHistoryColCategory: 'Kategoriya',
@@ -768,11 +771,11 @@ const uz_latin: T = {
   suppPurchaseReverseHint:
     'Saqlash yoki o‘chirishda eski kirim miqdori ombordan ayiriladi, yangi qiymat qo‘llanadi.',
   suppSupplierPurchasesDialogDesc:
-    'Bu ko‘cha obyektidan olingan mahsulotlar: sana, miqdor, jami, to‘langan va qarz.',
+    'Bu bazadan olingan mahsulotlar: sana, miqdor, jami, to‘langan va qarz.',
   suppOpenInHistoryTab: 'Xaridlar tarixida ochish',
   suppTabDebts: 'Qarzlar',
   suppDebtIntro:
-    'Qarzga olingan xaridlar bo‘yicha qoldiq. Ko‘cha obyektiga naqd berilgan summani bu yerda qayd eting — qoldiq kamayadi.',
+    'Qarzga olingan xaridlar bo‘yicha qoldiq. Bazaga naqd berilgan summani bu yerda qayd eting — qoldiq kamayadi.',
   suppDebtColRemaining: 'Qoldiq qarz',
   suppDebtPayBtn: 'To‘lash',
   suppDebtPayDialogTitle: 'Qarzni to‘lash',
@@ -782,13 +785,13 @@ const uz_latin: T = {
   suppDebtPaySubmit: 'To‘lovni saqlash',
   suppDebtPaySuccess: 'To‘lov qayd etildi',
   suppDebtExceedsRemaining: 'Summa qoldiq qarzdan oshmasligi kerak.',
-  suppDebtNoSuppliers: 'Ko‘cha obyektlari yo‘q',
+  suppDebtNoSuppliers: 'Bazalar yo‘q',
   suppDebtRepayHistory: 'Qarz to‘lovlari tarixi',
   suppDebtRepayColDate: 'Sana',
-  suppDebtRepayColSupplier: 'Ko‘cha obyekti',
+  suppDebtRepayColSupplier: 'Baza',
   suppDebtRepayColAmount: 'Summa',
   suppDebtOrphanBanner:
-    'O‘chirilgan ko‘cha obyekti bilan bog‘langan xaridlarda qarz qoldi (bu summani bu yerda to‘lab bo‘lmaydi):',
+    'O‘chirilgan baza bilan bog‘langan xaridlarda qarz qoldi (bu summani bu yerda to‘lab bo‘lmaydi):',
 
   expTitle: 'Chiqim',
   expIntro:
@@ -1057,7 +1060,8 @@ const uz_cyrillic: T = {
   navWarehouse: 'Омбор',
   navSales: 'Сотув',
   navCustomers: 'Клиентлар (сотиш)',
-  navSuppliers: 'Кўча объектлари (олиш)',
+  navSuppliers: 'База олиш',
+  navStreetObjects: 'Кўча объектлари олиш',
   navExpenses: 'Чиқим',
   navSystemUsers: 'Тизим фойдаланувчилари',
   navSettings: 'Созламалар',
@@ -1572,7 +1576,8 @@ const ru: T = {
   navWarehouse: 'Склад',
   navSales: 'Продажи',
   navCustomers: 'Клиенты (продажа)',
-  navSuppliers: 'Уличные объекты (закупка)',
+  navSuppliers: 'База — получение',
+  navStreetObjects: 'Уличные объекты — получение',
   navExpenses: 'Расходы',
   navSystemUsers: 'Пользователи системы',
   navSettings: 'Настройки',

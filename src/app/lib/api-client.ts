@@ -19,7 +19,7 @@ export function setApiTokens(at: string | null, rt: string | null) {
 function mapUser(raw: Record<string, unknown>): SessionUser {
   const routes = Array.isArray(raw.allowedRoutes) ? raw.allowedRoutes : [];
   const allowed = routes.filter((r): r is SessionUser['allowedRoutes'][number] =>
-    ['dashboard', 'sorting', 'warehouse', 'sales', 'customers', 'suppliers', 'expenses'].includes(
+    ['dashboard', 'sorting', 'warehouse', 'sales', 'customers', 'suppliers', 'streetObjects', 'expenses'].includes(
       String(r),
     ),
   );
