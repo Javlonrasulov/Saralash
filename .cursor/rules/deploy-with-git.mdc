@@ -1,0 +1,23 @@
+---
+description: Serverga deploy qilganda har doim git commit va push ham qilish
+alwaysApply: true
+---
+
+# Deploy = server + Git
+
+Foydalanuvchi serverga yuklash/deploy so'rasa, **har doim** quyidagi tartibni bajar:
+
+1. `npm run build` — xato bo'lsa, avval tuzat
+2. **Git:** barcha o'zgarishlarni `git add`, qisqa **o'zbekcha** commit xabari, `git push origin main`
+3. **Server:** `tar` → `scp` → `scripts/server-deploy.sh` (prod + dev)
+
+## Commit xabari
+
+- Qisqa va tushunarli o'zbek tilida (1 jumla)
+- Masalan: *Ombor va ko'cha obyektlari yangilandi.*
+
+## Eslatmalar
+
+- Faqat serverga yuborib, gitni tashlab qo'ymang
+- `tsconfig.tsbuildinfo` ni commit qilmaslik ma'qul
+- Mavjud loyihalarga (liderplast, mashina) tegmaslik
