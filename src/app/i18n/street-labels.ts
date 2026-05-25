@@ -3,64 +3,32 @@ import type { Language, T } from './translations';
 /** Barcha `t.*` kalitlari (joriy va `street*` kengaytmalari). */
 export type TWithStreet = T & Record<string, string>;
 
-const replacers: Record<Language, (s: string) => string> = {
-  uz_latin: (s) =>
-    s
-      .replace(/Bazaga/g, "Ko'cha obyektiga")
-      .replace(/Bazadan/g, "Ko'cha obyektidan")
-      .replace(/bazalar/g, "ko'cha obyektlari")
-      .replace(/bazani/g, "ko'cha obyektini")
-      .replace(/Bazani/g, "Ko'cha obyektini")
-      .replace(/Bazalar/g, "Ko'cha obyektlari")
-      .replace(/baza/g, "ko'cha obyekti")
-      .replace(/Baza/g, "Ko'cha obyekti"),
-  uz_cyrillic: (s) =>
-    s
-      .replace(/Базага/g, 'Кўча объектига')
-      .replace(/Базадан/g, 'Кўча объектидан')
-      .replace(/базалар/g, 'кўча объектлари')
-      .replace(/базани/g, 'кўча объектини')
-      .replace(/Базани/g, 'Кўча объектини')
-      .replace(/Базалар/g, 'Кўча объектлари')
-      .replace(/база/g, 'кўча объекти')
-      .replace(/База/g, 'Кўча объекти'),
-  ru: (s) =>
-    s
-      .replace(/базе/g, 'уличному объекту')
-      .replace(/Базе/g, 'Уличному объекту')
-      .replace(/базы/g, 'уличных объектов')
-      .replace(/Базы/g, 'Уличных объектов')
-      .replace(/база/g, 'уличный объект')
-      .replace(/База/g, 'Уличный объект'),
-};
-
-const navStreet: Record<Language, string> = {
-  uz_latin: "Ko'cha obyektlari olish",
-  uz_cyrillic: 'Кўча объектлари олиш',
-  ru: 'Уличные объекты — получение',
-};
-
-const whStreetPurchase: Record<Language, string> = {
-  uz_latin: "Ko'cha obyektlari narxi (1 birlik, soʻm, ixtiyoriy)",
-  uz_cyrillic: 'Кўча объектлари нархи (1 бирлик, сўм, ихтиёрий)',
-  ru: 'Цена закупки с уличного объекта (за 1 ед., сум, необязательно)',
-};
-
 /** `supp*` matnlardan `street*` kalitlarini hosil qiladi (alohida tarjima fayli kerak emas). */
 export function extendWithStreetLabels(base: T, lang: Language): TWithStreet {
-  const repl = replacers[lang];
-  const extra: Record<string, string> = {
-    navStreetObjects: navStreet[lang],
-    whStreetPurchasePricePerUnit: whStreetPurchase[lang],
-  };
+  const extra: Record<string, string> = {};
 
   for (const key of Object.keys(base) as (keyof T)[]) {
     const k = String(key);
     if (!k.startsWith('supp')) continue;
     const sk = `street${k.slice(4)}`;
     const val = base[key];
-    if (typeof val === 'string') extra[sk] = repl(val);
+    if (typeof val === 'string') extra[sk] = val;
   }
+
+  const navStreet: Record<Language, string> = {
+    uz_latin: 'Baza olish',
+    uz_cyrillic: 'База олиш',
+    ru: 'База — получение',
+  };
+
+  const whStreetPurchase: Record<Language, string> = {
+    uz_latin: 'Baza narxi (1 birlik, soʻm, ixtiyoriy)',
+    uz_cyrillic: 'База нархи (1 бирлик, сўм, ихтиёрий)',
+    ru: 'Цена закупки с базы (за 1 ед., сум, необязательно)',
+  };
+
+  extra.navStreetObjects = navStreet[lang];
+  extra.whStreetPurchasePricePerUnit = whStreetPurchase[lang];
 
   const streetOnly: Record<Language, Record<string, string>> = {
     uz_latin: {
@@ -72,7 +40,7 @@ export function extendWithStreetLabels(base: T, lang: Language): TWithStreet {
       streetHistoryPeriodGrandTotal: 'Jami xarid summasi',
       streetHistoryPeriodEmpty: 'Bu davrda xarid qayd etilmagan',
       streetHistoryPeriodByProduct: 'Mahsulotlar bo‘yicha',
-      streetTitle: "Ko'cha obyektlari olish",
+      streetTitle: 'Baza',
     },
     uz_cyrillic: {
       streetDailyPurchaseSummaryDay: 'Олинган маҳсулотлар',
@@ -83,7 +51,7 @@ export function extendWithStreetLabels(base: T, lang: Language): TWithStreet {
       streetHistoryPeriodGrandTotal: 'Жами харид суммаси',
       streetHistoryPeriodEmpty: 'Бу даврда харид қайд этилмаган',
       streetHistoryPeriodByProduct: 'Маҳсулотлар бўйича',
-      streetTitle: 'Кўча объектлари олиш',
+      streetTitle: 'База',
     },
     ru: {
       streetDailyPurchaseSummaryDay: 'Закуплено',
@@ -94,7 +62,7 @@ export function extendWithStreetLabels(base: T, lang: Language): TWithStreet {
       streetHistoryPeriodGrandTotal: 'Сумма закупок',
       streetHistoryPeriodEmpty: 'За период закупок нет',
       streetHistoryPeriodByProduct: 'По товарам',
-      streetTitle: 'Уличные объекты — получение',
+      streetTitle: 'База',
     },
   };
   Object.assign(extra, streetOnly[lang]);

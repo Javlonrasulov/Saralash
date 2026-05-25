@@ -77,6 +77,7 @@ import {
   lineQtyTotal,
   switchWarehouseOnLine,
 } from '../utils/purchase-qty-parts';
+import { isIntakePurchaseFormDirty, toIntakePurchaseDraft } from '../utils/purchase-draft-form';
 
 interface SupplierFormState {
   fullName: string;
@@ -140,6 +141,7 @@ export function Suppliers() {
   const [confirmDelete, setConfirmDelete] = useState<Supplier | null>(null);
 
   const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [purchaseDiscardConfirmOpen, setPurchaseDiscardConfirmOpen] = useState(false);
   const [purchaseForm, setPurchaseForm] = useState<PurchaseFormState>(EMPTY_PURCHASE);
   /** Qaysi qator kengaytirilgan (qolganlari qisqa qator). */
   const [purchaseEditingKey, setPurchaseEditingKey] = useState('');
@@ -566,6 +568,21 @@ export function Suppliers() {
     setDialogOpen(true);
   };
 
+  const closePurchaseDialog = () => {
+    setPurchaseOpen(false);
+    setPurchaseDiscardConfirmOpen(false);
+    setPurchaseForm(EMPTY_PURCHASE);
+    setPurchaseEditingKey('');
+  };
+
+  const requestClosePurchaseDialog = () => {
+    if (isIntakePurchaseFormDirty(toIntakePurchaseDraft(purchaseForm))) {
+      setPurchaseDiscardConfirmOpen(true);
+      return;
+    }
+    closePurchaseDialog();
+  };
+
   const openPurchaseDialog = () => {
     const first = warehousePurchaseOptions[0];
     const line = newPurchaseLine(first?.id ?? '', first ? prefPurchasePrice(first) : '');
@@ -574,6 +591,7 @@ export function Suppliers() {
       lines: [line],
     });
     setPurchaseEditingKey(line.key);
+    setPurchaseDiscardConfirmOpen(false);
     setPurchaseOpen(true);
   };
 
@@ -705,8 +723,7 @@ export function Suppliers() {
       return;
     }
     toast.success(t.suppPurchaseSuccess);
-    setPurchaseOpen(false);
-    setPurchaseForm(EMPTY_PURCHASE);
+    closePurchaseDialog();
   };
 
   const handleDelete = () => {
@@ -1470,11 +1487,11 @@ export function Suppliers() {
       <Dialog
         open={purchaseOpen}
         onOpenChange={(open) => {
-          setPurchaseOpen(open);
-          if (!open) {
-            setPurchaseForm(EMPTY_PURCHASE);
-            setPurchaseEditingKey('');
+          if (open) {
+            setPurchaseOpen(true);
+            return;
           }
+          requestClosePurchaseDialog();
         }}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
@@ -1736,7 +1753,11 @@ export function Suppliers() {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setPurchaseOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPurchaseDiscardConfirmOpen(true)}
+              >
                 {t.cancel}
               </Button>
               <Button type="submit">{t.suppPurchaseSubmit}</Button>
@@ -1744,6 +1765,22 @@ export function Suppliers() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={purchaseDiscardConfirmOpen}
+        onOpenChange={setPurchaseDiscardConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.suppPurchaseDiscardTitle}</AlertDialogTitle>
+            <AlertDialogDescription>{t.suppPurchaseDiscardDesc}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={closePurchaseDialog}>{t.confirm}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={debtRepayOpen}
