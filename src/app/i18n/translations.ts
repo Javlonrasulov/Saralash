@@ -154,10 +154,17 @@ export interface T {
   whValidateAllocateQty: string;
   /** Mahsulot qo'shish/tahrir: sotib olish 1 birlik (so'm, ixtiyoriy) */
   whPurchasePricePerUnit: string;
+  /** Ombor forma: sotib olish narxlari bloki */
+  whPurchasePricesSection: string;
+  whPurchasePricesHint: string;
+  whBazaPurchasePricePerUnit: string;
+  whKochaPurchasePricePerUnit: string;
   /** Mahsulot qo'shish/tahrir: sotish 1 birlik (so'm, ixtiyoriy) */
   whSalePricePerUnit: string;
   /** Jadval ustuni (qisqa) */
   whColPurchaseShort: string;
+  whColBazaPurchaseShort: string;
+  whColKochaPurchaseShort: string;
   whColSaleShort: string;
   /** Noto'g'ri ixtiyoriy narx */
   whValidateOptionalPrice: string;
@@ -547,7 +554,7 @@ const uz_latin: T = {
   navSales: 'Sotuv',
   navCustomers: 'Klientlar (sotish)',
   navSuppliers: 'Baza olish',
-  navStreetObjects: 'Baza olish',
+  navStreetObjects: "Ko'cha obyektlari",
   navExpenses: 'Chiqim',
   navSystemUsers: 'Tizim foydalanuvchilari',
   navSettings: 'Sozlamalar',
@@ -672,8 +679,15 @@ const uz_latin: T = {
   whValidateSubName: 'Ajratilgan tur nomini kiriting.',
   whValidateAllocateQty: 'Miqdor: 0 yoki musbat son (manfiy emas).',
   whPurchasePricePerUnit: 'Sotib olish narxi (1 birlik, soʻm, ixtiyoriy)',
+  whPurchasePricesSection: 'Sotib olish narxi',
+  whPurchasePricesHint:
+    'Baza (xarid) va ko‘cha obyektlari (xarid) uchun alohida reja narxi. Bo‘sh qoldirilsa — narx ko‘rsatilmaydi.',
+  whBazaPurchasePricePerUnit: 'Baza (1 birlik, soʻm, ixtiyoriy)',
+  whKochaPurchasePricePerUnit: 'Ko‘cha obyektlari (1 birlik, soʻm, ixtiyoriy)',
   whSalePricePerUnit: 'Sotish narxi (1 birlik, soʻm, ixtiyoriy)',
   whColPurchaseShort: 'Sotib olish',
+  whColBazaPurchaseShort: 'Baza',
+  whColKochaPurchaseShort: 'Ko‘cha',
   whColSaleShort: 'Sotish',
   whValidateOptionalPrice: 'Narx: boʻsh yoki musbat son (soʻm).',
   whChildAddQtyTitle: 'Ajratilgan turga miqdor qoʻshish',
@@ -1065,7 +1079,7 @@ const uz_cyrillic: T = {
   navSales: 'Сотув',
   navCustomers: 'Клиентлар (сотиш)',
   navSuppliers: 'База олиш',
-  navStreetObjects: 'База олиш',
+  navStreetObjects: 'Кўча объектлари',
   navExpenses: 'Чиқим',
   navSystemUsers: 'Тизим фойдаланувчилари',
   navSettings: 'Созламалар',
@@ -1189,8 +1203,15 @@ const uz_cyrillic: T = {
   whValidateSubName: 'Ажратилган тур номини киритинг.',
   whValidateAllocateQty: 'Миқдор: 0 ёки мусбат сон.',
   whPurchasePricePerUnit: 'Сотиб олиш нархи (1 бирлик, сўм, ихтиёрий)',
+  whPurchasePricesSection: 'Сотиб олиш нархи',
+  whPurchasePricesHint:
+    'База (харид) ва кўча объектлари (харид) учун алоҳида режа нархи. Бўш қолдирилса — нарх кўрсатилмайди.',
+  whBazaPurchasePricePerUnit: 'База (1 бирлик, сўм, ихтиёрий)',
+  whKochaPurchasePricePerUnit: 'Кўча объектлари (1 бирлик, сўм, ихтиёрий)',
   whSalePricePerUnit: 'Сотиш нархи (1 бирлик, сўм, ихтиёрий)',
   whColPurchaseShort: 'Сотиб олиш',
+  whColBazaPurchaseShort: 'База',
+  whColKochaPurchaseShort: 'Кўча',
   whColSaleShort: 'Сотиш',
   whValidateOptionalPrice: 'Нарх: бўш ёки мусбат сон (сўм).',
   whChildAddQtyTitle: 'Ажратилган турга миқдор қўшиш',
@@ -1583,7 +1604,7 @@ const ru: T = {
   navSales: 'Продажи',
   navCustomers: 'Клиенты (продажа)',
   navSuppliers: 'База — получение',
-  navStreetObjects: 'База — получение',
+  navStreetObjects: 'Уличные объекты',
   navExpenses: 'Расходы',
   navSystemUsers: 'Пользователи системы',
   navSettings: 'Настройки',
@@ -1707,8 +1728,15 @@ const ru: T = {
   whValidateSubName: 'Введите название выделенного типа.',
   whValidateAllocateQty: 'Количество: 0 или неотрицательное число.',
   whPurchasePricePerUnit: 'Цена закупки (за 1 ед., сум, необязательно)',
+  whPurchasePricesSection: 'Цена закупки',
+  whPurchasePricesHint:
+    'Отдельная плановая цена для базы (закупка) и уличных объектов (закупка). Пусто — цена не показывается.',
+  whBazaPurchasePricePerUnit: 'База (за 1 ед., сум, необязательно)',
+  whKochaPurchasePricePerUnit: 'Уличные объекты (за 1 ед., сум, необязательно)',
   whSalePricePerUnit: 'Цена продажи (за 1 ед., сум, необязательно)',
   whColPurchaseShort: 'Закупка',
+  whColBazaPurchaseShort: 'База',
+  whColKochaPurchaseShort: 'Улица',
   whColSaleShort: 'Продажа',
   whValidateOptionalPrice: 'Цена: пусто или неотрицательное число (сум).',
   whChildAddQtyTitle: 'Добавить количество (выделенный тип)',

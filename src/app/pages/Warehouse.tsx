@@ -417,37 +417,47 @@ function ProductDialog({
               className="mt-1.5 sm:max-w-xs"
             />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <Label>{t.whPurchasePricePerUnit}</Label>
-              <Input
-                value={form.purchasePrice}
-                onChange={(e) => setForm((f) => ({ ...f, purchasePrice: e.target.value }))}
-                placeholder="0"
-                inputMode="decimal"
-                className="mt-1.5"
-              />
+          <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-600">
+            <Label className="text-sm font-medium">{t.whPurchasePricesSection}</Label>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+              {t.whPurchasePricesHint}
+            </p>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/25">
+                <Label className="text-xs font-semibold text-indigo-900 dark:text-indigo-200">
+                  {t.whBazaPurchasePricePerUnit}
+                </Label>
+                <Input
+                  value={form.purchasePrice}
+                  onChange={(e) => setForm((f) => ({ ...f, purchasePrice: e.target.value }))}
+                  placeholder="0"
+                  inputMode="decimal"
+                  className="mt-1.5"
+                />
+              </div>
+              <div className="rounded-lg border border-sky-100 bg-sky-50/40 p-3 dark:border-sky-900/50 dark:bg-sky-950/25">
+                <Label className="text-xs font-semibold text-sky-900 dark:text-sky-200">
+                  {t.whKochaPurchasePricePerUnit}
+                </Label>
+                <Input
+                  value={form.streetPurchasePrice}
+                  onChange={(e) => setForm((f) => ({ ...f, streetPurchasePrice: e.target.value }))}
+                  placeholder="0"
+                  inputMode="decimal"
+                  className="mt-1.5"
+                />
+              </div>
             </div>
-            <div>
-              <Label>{t.whStreetPurchasePricePerUnit}</Label>
-              <Input
-                value={form.streetPurchasePrice}
-                onChange={(e) => setForm((f) => ({ ...f, streetPurchasePrice: e.target.value }))}
-                placeholder="0"
-                inputMode="decimal"
-                className="mt-1.5"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label>{t.whSalePricePerUnit}</Label>
-              <Input
-                value={form.salePrice}
-                onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))}
-                placeholder="0"
-                inputMode="decimal"
-                className="mt-1.5"
-              />
-            </div>
+          </div>
+          <div>
+            <Label>{t.whSalePricePerUnit}</Label>
+            <Input
+              value={form.salePrice}
+              onChange={(e) => setForm((f) => ({ ...f, salePrice: e.target.value }))}
+              placeholder="0"
+              inputMode="decimal"
+              className="mt-1.5 sm:max-w-xs"
+            />
           </div>
 
           {(!editing || (editing && !editing.parentWarehouseId)) && (
@@ -800,7 +810,8 @@ export function Warehouse() {
                   <TableHead>{t.whProductName}</TableHead>
                   <TableHead>{t.whCategory}</TableHead>
                   <TableHead className="text-right">{t.whQuantity}</TableHead>
-                  <TableHead className="text-right">{t.whColPurchaseShort}</TableHead>
+                  <TableHead className="text-right">{t.whColBazaPurchaseShort}</TableHead>
+                  <TableHead className="text-right">{t.whColKochaPurchaseShort}</TableHead>
                   <TableHead className="text-right">{t.whColSaleShort}</TableHead>
                   <TableHead>{t.whIncomeDate}</TableHead>
                   <TableHead>{t.notes}</TableHead>
@@ -809,7 +820,7 @@ export function Warehouse() {
               </TableHeader>
               <TableBody>
                 {warehouseStockGroups.length === 0 ? (
-                  <TableEmpty colSpan={8} message={t.noData} />
+                  <TableEmpty colSpan={9} message={t.noData} />
                 ) : (
                   warehouseStockGroups.map(({ root, children }, groupIndex) => {
                     const rows = [root, ...children];
@@ -818,7 +829,7 @@ export function Warehouse() {
                         {groupIndex > 0 && (
                           <TableRow className="border-0 hover:bg-transparent dark:hover:bg-transparent">
                             <TableCell
-                              colSpan={8}
+                              colSpan={9}
                               className="border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent"
                             >
                               <div
@@ -911,6 +922,9 @@ export function Warehouse() {
                               </TableCell>
                               <TableCell className="nums text-right text-xs text-slate-600 dark:text-slate-300">
                                 {formatWarehouseUnitPrice(w.purchasePricePerUnit)}
+                              </TableCell>
+                              <TableCell className="nums text-right text-xs text-slate-600 dark:text-slate-300">
+                                {formatWarehouseUnitPrice(w.streetPurchasePricePerUnit)}
                               </TableCell>
                               <TableCell className="nums text-right text-xs text-slate-600 dark:text-slate-300">
                                 {formatWarehouseUnitPrice(w.salePricePerUnit)}
@@ -1023,8 +1037,10 @@ export function Warehouse() {
                             </p>
                           )}
                           <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
-                            {t.whColPurchaseShort}: {formatWarehouseUnitPrice(root.purchasePricePerUnit)} ·{' '}
-                            {t.whColSaleShort}: {formatWarehouseUnitPrice(root.salePricePerUnit)}
+                            {t.whColBazaPurchaseShort}: {formatWarehouseUnitPrice(root.purchasePricePerUnit)} ·{' '}
+                            {t.whColKochaPurchaseShort}:{' '}
+                            {formatWarehouseUnitPrice(root.streetPurchasePricePerUnit)} · {t.whColSaleShort}:{' '}
+                            {formatWarehouseUnitPrice(root.salePricePerUnit)}
                           </p>
                           <p className="mt-1 truncate text-xs text-slate-500">{root.notes ?? '—'}</p>
                         </div>
@@ -1080,8 +1096,10 @@ export function Warehouse() {
                                     {formatNumber(w.currentQty)} {w.unit}
                                   </p>
                                   <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
-                                    {t.whColPurchaseShort}: {formatWarehouseUnitPrice(w.purchasePricePerUnit)} ·{' '}
-                                    {t.whColSaleShort}: {formatWarehouseUnitPrice(w.salePricePerUnit)}
+                                    {t.whColBazaPurchaseShort}: {formatWarehouseUnitPrice(w.purchasePricePerUnit)} ·{' '}
+                                    {t.whColKochaPurchaseShort}:{' '}
+                                    {formatWarehouseUnitPrice(w.streetPurchasePricePerUnit)} · {t.whColSaleShort}:{' '}
+                                    {formatWarehouseUnitPrice(w.salePricePerUnit)}
                                   </p>
                                 </div>
                               </div>
