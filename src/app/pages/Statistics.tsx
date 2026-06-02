@@ -9,7 +9,7 @@ import {
   Users,
   Receipt,
   Boxes,
-  PiggyBank,
+  CircleAlert,
   Coins,
   Gauge,
   ArrowDownLeft,
@@ -320,12 +320,13 @@ export function Statistics() {
       (s, e) => s + (e.amount > 0 && Number.isFinite(e.amount) ? e.amount : 0),
       0,
     );
-    const profit = revenue - cogs - expensesTotal;
+    const grossProfit = revenue - cogs;
+    const profit = grossProfit - expensesTotal;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     const orderCount = orderTotals.size;
     let avgOrder = 0;
     if (orderCount > 0) avgOrder = revenue / orderCount;
-    return { revenue, cogs, expensesTotal, profit, margin, orderCount, avgOrder };
+    return { revenue, cogs, grossProfit, expensesTotal, profit, margin, orderCount, avgOrder };
   }, [soldLines, warehouseById, expensesInRange]);
 
   /** Operatsiya statistikasi: faol klient/ko‘cha obyekti soni, sotilgan kg. */
@@ -550,7 +551,7 @@ export function Statistics() {
               </p>
               <p className="mt-2 max-w-2xl text-xs text-white/85 sm:text-sm">{t.statHeroNote}</p>
             </div>
-            <div className="grid w-full grid-cols-3 gap-2 sm:gap-3 lg:w-auto lg:min-w-[320px]">
+            <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 lg:w-auto lg:min-w-[360px]">
               <div className="rounded-xl bg-white/15 p-2.5 text-white backdrop-blur sm:p-3">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-white/80">
                   {t.statKpiRevenue}
@@ -567,6 +568,14 @@ export function Statistics() {
                   {formatNumber(finance.cogs)}
                 </p>
               </div>
+              <div className="rounded-xl bg-white/20 p-2.5 text-white ring-1 ring-white/25 backdrop-blur sm:p-3">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-white/90">
+                  {t.statKpiGrossProfit}
+                </p>
+                <p className="nums mt-1 text-sm font-bold sm:text-base lg:text-lg">
+                  {formatNumber(finance.grossProfit)}
+                </p>
+              </div>
               <div className="rounded-xl bg-white/15 p-2.5 text-white backdrop-blur sm:p-3">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-white/80">
                   {t.statKpiExpenses}
@@ -580,8 +589,8 @@ export function Statistics() {
         </div>
       </Card>
 
-      {/* KPI: tushum, tannarx, chiqimlar, sof foyda, marja */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
+      {/* KPI: jami sotuv → tannarx → savdo foydasi → chiqimlar → sof foyda */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-6">
         <KpiCard
           title={t.statKpiRevenue}
           value={`${formatNumber(finance.revenue)} so'm`}
@@ -595,6 +604,13 @@ export function Statistics() {
           hint={t.statKpiCogsHint}
           icon={Package}
           tone={TONE_AMBER}
+        />
+        <KpiCard
+          title={t.statKpiGrossProfit}
+          value={`${formatNumber(finance.grossProfit)} so'm`}
+          hint={t.statKpiGrossProfitHint}
+          icon={TrendingUp}
+          tone={TONE_EMERALD}
         />
         <KpiCard
           title={t.statKpiExpenses}
@@ -637,6 +653,7 @@ export function Statistics() {
             {(() => {
               const moneyMax = Math.max(
                 finance.revenue,
+                finance.grossProfit,
                 cash.totalPurchased,
                 cash.paidToSuppliers,
                 finance.expensesTotal,
@@ -651,8 +668,15 @@ export function Statistics() {
                     icon={ArrowDownLeft}
                     label={t.statMoneySalesIn}
                     value={`${formatNumber(finance.revenue)} so'm`}
-                    tone={TONE_EMERALD}
+                    tone={TONE_INDIGO}
                     share={share(finance.revenue)}
+                  />
+                  <MoneyRow
+                    icon={TrendingUp}
+                    label={t.statMoneyGrossProfit}
+                    value={`${formatNumber(finance.grossProfit)} so'm`}
+                    tone={TONE_EMERALD}
+                    share={share(finance.grossProfit)}
                     emphasize
                   />
                   <MoneyRow
@@ -677,7 +701,7 @@ export function Statistics() {
                     share={share(finance.expensesTotal)}
                   />
                   <MoneyRow
-                    icon={PiggyBank}
+                    icon={CircleAlert}
                     label={t.statMoneySupplierDebt}
                     value={`${formatNumber(cash.supplierDebt)} so'm`}
                     tone={TONE_ROSE}

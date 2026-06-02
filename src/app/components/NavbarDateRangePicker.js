@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useApp } from '../i18n/app-context';
 import { useNavDateFilter } from '../context/nav-date-range-context';
-import { addDays, clampYmdToMax, endOfMonth, formatYmdDisplay, parseDdMmYyyy, startOfMonth, startOfWeekMonday, todayYmd, ymdFromDate, } from '../lib/nav-date-range';
+import { useStore } from '../store/saralash-store';
+import { addDays, clampYmdToMax, collectGoodsIntakeYmdSet, endOfMonth, formatYmdDisplay, parseDdMmYyyy, startOfMonth, startOfWeekMonday, todayYmd, ymdFromDate, } from '../lib/nav-date-range';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { cn } from './ui/utils';
@@ -32,6 +33,7 @@ function localeFromLang(lang) {
 export function NavbarDateRangePicker() {
     const { t, lang } = useApp();
     const { filter, setFilter } = useNavDateFilter();
+    const { state } = useStore();
     const maxYmd = todayYmd();
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
@@ -210,6 +212,13 @@ export function NavbarDateRangePicker() {
         syncInputsFromDraft(newFrom, c);
     };
     const cells = useMemo(() => monthGridCells(viewYear, viewMonth), [viewYear, viewMonth]);
+    const goodsIntakeDates = useMemo(() => collectGoodsIntakeYmdSet({
+        warehouseIncomeDates: state.warehouseItems.map((w) => w.incomeDate),
+        purchaseIncomeDates: [
+            ...state.supplierPurchases.map((p) => p.incomeDate),
+            ...state.streetPurchases.map((p) => p.incomeDate),
+        ],
+    }), [state.warehouseItems, state.supplierPurchases, state.streetPurchases]);
     const now = new Date();
     const canGoNextMonth = viewYear < now.getFullYear() ||
         (viewYear === now.getFullYear() && viewMonth < now.getMonth());
@@ -244,10 +253,11 @@ export function NavbarDateRangePicker() {
                                             const isFuture = ymd > maxYmd;
                                             const isEdge = ymd === draftFrom || ymd === draftTo;
                                             const mid = inRangeVisual(ymd) && !isEdge && !isFuture;
-                                            return (_jsx("button", { type: "button", disabled: isFuture, onClick: () => onDayClick(day), className: cn('aspect-square rounded-lg text-xs font-medium transition-colors', isFuture && 'cursor-not-allowed text-slate-300 opacity-35 dark:text-slate-600', !isFuture &&
+                                            const hasGoodsIntake = !isFuture && goodsIntakeDates.has(ymd);
+                                            return (_jsxs("button", { type: "button", disabled: isFuture, onClick: () => onDayClick(day), title: hasGoodsIntake ? t.navDateHasGoodsIntake : undefined, className: cn('relative flex aspect-square flex-col items-center justify-center rounded-lg pb-1 text-xs font-medium transition-colors', isFuture && 'cursor-not-allowed text-slate-300 opacity-35 dark:text-slate-600', !isFuture &&
                                                     isEdge &&
                                                     'bg-indigo-600 text-white shadow-sm dark:bg-indigo-500 dark:text-white', !isFuture && mid && 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200', !isFuture &&
                                                     !inRangeVisual(ymd) &&
-                                                    'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'), children: day }, ymd));
-                                        }) }), _jsxs("p", { className: "mt-2 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400", children: [_jsx(CalendarIcon, { size: 12, className: "shrink-0 opacity-70" }), pickHint === 'start' ? t.navDatePickStart : t.navDatePickEnd] })] }), _jsxs("div", { className: "shrink-0 border-t border-slate-100 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900", children: [_jsx("p", { className: "nums mb-2.5 text-center text-sm font-semibold text-indigo-700 dark:text-indigo-300", children: draftRangeLabel }), _jsx(Button, { type: "button", className: "h-11 w-full rounded-xl text-sm font-semibold", onClick: applyDraft, children: t.navDateApply })] })] })] }))] }));
+                                                    'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'), children: [_jsx("span", { className: "leading-none", children: day }), hasGoodsIntake && (_jsx("span", { className: cn('mt-0.5 h-1 w-1 shrink-0 rounded-full', isEdge ? 'bg-white/95' : 'bg-emerald-500 dark:bg-emerald-400'), "aria-hidden": true }))] }, ymd));
+                                        }) }), _jsxs("div", { className: "mt-2 space-y-1", children: [_jsxs("p", { className: "flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400", children: [_jsx(CalendarIcon, { size: 12, className: "shrink-0 opacity-70" }), pickHint === 'start' ? t.navDatePickStart : t.navDatePickEnd] }), _jsxs("p", { className: "flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500", children: [_jsx("span", { className: "h-1 w-1 shrink-0 rounded-full bg-emerald-500", "aria-hidden": true }), t.navDateGoodsIntakeLegend] })] })] }), _jsxs("div", { className: "shrink-0 border-t border-slate-100 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900", children: [_jsx("p", { className: "nums mb-2.5 text-center text-sm font-semibold text-indigo-700 dark:text-indigo-300", children: draftRangeLabel }), _jsx(Button, { type: "button", className: "h-11 w-full rounded-xl text-sm font-semibold", onClick: applyDraft, children: t.navDateApply })] })] })] }))] }));
 }

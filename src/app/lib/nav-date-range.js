@@ -4,6 +4,16 @@ export function normalizeYmd(raw) {
     const d = String(raw).slice(0, 10);
     return YMD.test(d) ? d : '';
 }
+/** Omborga tovar kirimi bo‘lgan kunlar (`incomeDate`). */
+export function collectGoodsIntakeYmdSet(sources) {
+    const set = new Set();
+    for (const raw of [...sources.warehouseIncomeDates, ...sources.purchaseIncomeDates]) {
+        const ymd = normalizeYmd(raw);
+        if (ymd)
+            set.add(ymd);
+    }
+    return set;
+}
 export function isYmdInNavFilter(ymd, f) {
     if (f.mode === 'all')
         return true;

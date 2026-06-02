@@ -9,6 +9,19 @@ export function normalizeYmd(raw: string): string {
   return YMD.test(d) ? d : '';
 }
 
+/** Omborga tovar kirimi bo‘lgan kunlar (`incomeDate`). */
+export function collectGoodsIntakeYmdSet(sources: {
+  warehouseIncomeDates: string[];
+  purchaseIncomeDates: string[];
+}): Set<string> {
+  const set = new Set<string>();
+  for (const raw of [...sources.warehouseIncomeDates, ...sources.purchaseIncomeDates]) {
+    const ymd = normalizeYmd(raw);
+    if (ymd) set.add(ymd);
+  }
+  return set;
+}
+
 export function isYmdInNavFilter(ymd: string, f: NavDateFilter): boolean {
   if (f.mode === 'all') return true;
   const day = normalizeYmd(ymd);

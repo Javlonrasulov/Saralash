@@ -112,6 +112,7 @@ export function Sales() {
 
   const productSelectTriggerRef = useRef<HTMLButtonElement>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
+  const prevCartLenRef = useRef(0);
 
   /** kg: ota (zaxira yoki bolalari bor) + bola (0 qoldiq ham ota orqali sotiladi) */
   const inStock = useMemo(() => {
@@ -392,9 +393,14 @@ export function Sales() {
   useEffect(() => {
     if (cart.length === 0) {
       setPaidInput('');
+      prevCartLenRef.current = 0;
       return;
     }
-    setPaidInput(formatMoneyInputDisplay(String(Math.round(cartTotal))));
+    /** Faqat savat bo‘shdan to‘ldirilganda — qarz uchun qo‘lda kiritilgan to‘lovni saqlab qolish */
+    if (prevCartLenRef.current === 0) {
+      setPaidInput(formatMoneyInputDisplay(String(Math.round(cartTotal))));
+    }
+    prevCartLenRef.current = cart.length;
   }, [cart.length, cartTotal]);
 
   const syncPaidWithCartTotal = useCallback(() => {

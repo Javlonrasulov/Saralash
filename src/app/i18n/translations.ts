@@ -407,6 +407,8 @@ export interface T {
   navDatePickStart: string;
   navDatePickEnd: string;
   navDateThisWeek: string;
+  navDateHasGoodsIntake: string;
+  navDateGoodsIntakeLegend: string;
   navWeekdayShort: string;
 
   // Auth
@@ -488,6 +490,8 @@ export interface T {
   statKpiRevenueHint: string;
   statKpiCogs: string;
   statKpiCogsHint: string;
+  statKpiGrossProfit: string;
+  statKpiGrossProfitHint: string;
   statKpiExpenses: string;
   statKpiExpensesHint: string;
   statKpiProfit: string;
@@ -497,6 +501,7 @@ export interface T {
   statSectionMoney: string;
   statSectionMoneyDesc: string;
   statMoneySalesIn: string;
+  statMoneyGrossProfit: string;
   statMoneyPurchases: string;
   statMoneyPaidSuppliers: string;
   statMoneySupplierDebt: string;
@@ -929,6 +934,8 @@ const uz_latin: T = {
   navDatePickStart: 'Boshlanish sanasini tanlang',
   navDatePickEnd: 'Tugash sanasini tanlang',
   navDateThisWeek: 'Bu hafta',
+  navDateHasGoodsIntake: 'Bu kunda omborga tovar kirimi bor',
+  navDateGoodsIntakeLegend: 'Yashil nuqta — omborga kirim bo‘lgan kun',
   navWeekdayShort: 'Du,Se,Ch,Pa,Ju,Sh,Ya',
 
   authTitle: 'Saralash tizimi',
@@ -1006,20 +1013,23 @@ const uz_latin: T = {
   statPeriodLabel: 'Davr',
   statHeroLabel: 'Sof foyda',
   statHeroNote:
-    'Sotuvdan tushum minus mahsulot tannarxi va «Chiqim» sahifasidagi korxona chiqimlari (ish haqi, ijara va h.k.).',
-  statKpiRevenue: 'Sotuvdan tushum',
-  statKpiRevenueHint: 'Davrdagi jami sotuv summasi',
+    'Misol: 500 so‘mga olib, 1000 so‘mga sotsangiz — jami sotuv 1000, savdo foydasi 500. Sof foyda = savdo foydasi minus «Chiqim» (ish haqi, ijara).',
+  statKpiRevenue: 'Jami sotilgan summa',
+  statKpiRevenueHint: 'Mijoz to‘lagan pul (foyda emas). 1000 so‘mga sotilsa — shu yerda 1000.',
   statKpiCogs: 'Mahsulot tannarxi',
-  statKpiCogsHint: 'Sotilgan mahsulotlarning sotib olish qiymati',
+  statKpiCogsHint: 'Sotilgan mahsulotning sotib olish qiymati. Misolda 500.',
+  statKpiGrossProfit: 'Savdo foydasi',
+  statKpiGrossProfitHint: 'Jami sotuv − tannarx. Misol: 1000 − 500 = 500 so‘m.',
   statKpiExpenses: 'Korxona chiqimlari',
   statKpiExpensesHint: '«Chiqim» bo‘limidagi yozuvlar yig‘indisi (tanlangan davr)',
   statKpiProfit: 'Sof foyda',
-  statKpiProfitHint: 'Tushum − tannarx − chiqimlar',
+  statKpiProfitHint: 'Savdo foydasi − korxona chiqimlari',
   statKpiMargin: 'Foyda darajasi',
-  statKpiMarginHint: 'Sof foyda / tushum',
+  statKpiMarginHint: 'Sof foyda / jami sotuv',
   statSectionMoney: 'Pul harakati',
   statSectionMoneyDesc: 'Sotuv, ko‘cha obyektlari, chiqimlar va qarz qoldiqlari.',
-  statMoneySalesIn: 'Sotuvdan kirim',
+  statMoneySalesIn: 'Jami sotilgan summa (mijoz)',
+  statMoneyGrossProfit: 'Savdo foydasi',
   statMoneyPurchases: 'Ko‘cha obyektidan jami xarid',
   statMoneyPaidSuppliers: 'Ko‘cha obyektiga to‘langan',
   statMoneySupplierDebt: 'Ko‘cha obyektiga qarz qoldigʻi',
@@ -1062,7 +1072,7 @@ const uz_latin: T = {
   statInvPotential: 'Potentsial foyda',
   statInvItems: 'Mahsulot qatorlari',
   statHintCalc:
-    'Sof foyda: sotuv tushumi minus mahsulot tannarxi (ombor «Sotib olish narxi») minus «Chiqim» sahifasidagi yozuvlar. Narxsiz mahsulotlar tannarxsiz hisoblanadi.',
+    'Jami sotilgan summa — mijoz to‘lagan pul (foyda emas). Savdo foydasi = jami sotuv − tannarx (ombor «Sotib olish narxi»). Sof foyda = savdo foydasi − «Chiqim». Narxsiz mahsulotlar tannarxi 0 deb olinadi.',
   statEmpty: 'Tanlangan davrda maʼlumot yoʻq',
   statBadgeProfit: 'Foyda',
   statBadgeLoss: 'Zarar',
@@ -1454,6 +1464,8 @@ const uz_cyrillic: T = {
   navDatePickStart: 'Бошланиш санасини танланг',
   navDatePickEnd: 'Тугаш санасини танланг',
   navDateThisWeek: 'Бу ҳафта',
+  navDateHasGoodsIntake: 'Бу кунда омборга товар кирими бор',
+  navDateGoodsIntakeLegend: 'Яшил нуқта — омборга кирим бўлган кун',
   navWeekdayShort: 'Ду,Се,Чор,Пай,Жу,Шан,Як',
 
   authTitle: 'Саралаш тизими',
@@ -1531,20 +1543,23 @@ const uz_cyrillic: T = {
   statPeriodLabel: 'Давр',
   statHeroLabel: 'Соф фойда',
   statHeroNote:
-    'Сотувдан тушум минус маҳсулот таннархи ва «Чиқим» саҳифасидаги корхона чиқимлари (иш ҳақи, ижара ва ҳ.к.).',
-  statKpiRevenue: 'Сотувдан тушум',
-  statKpiRevenueHint: 'Даврдаги жами сотув суммаси',
+    'Мисол: 500 сўмга олиб, 1000 сўмга сотсангиз — жами сотув 1000, савдо фойдаси 500. Соф фойда = савдо фойдаси минус «Чиқим» (иш ҳақи, ижара).',
+  statKpiRevenue: 'Жами сотилган сумма',
+  statKpiRevenueHint: 'Мижоз тўлаган пул (фойда эмас). 1000 сўмга сотилса — шу ерда 1000.',
   statKpiCogs: 'Маҳсулот таннархи',
-  statKpiCogsHint: 'Сотилган маҳсулотларнинг сотиб олиш қиймати',
+  statKpiCogsHint: 'Сотилган маҳсулотнинг сотиб олиш қиймати. Мисолда 500.',
+  statKpiGrossProfit: 'Савдо фойдаси',
+  statKpiGrossProfitHint: 'Жами сотув − таннарх. Мисол: 1000 − 500 = 500 сўм.',
   statKpiExpenses: 'Корхона чиқимлари',
   statKpiExpensesHint: '«Чиқим» бўлимидаги ёзувлар йиғиндиси (танланган давр)',
   statKpiProfit: 'Соф фойда',
-  statKpiProfitHint: 'Тушум − таннарх − чиқимлар',
+  statKpiProfitHint: 'Савдо фойдаси − корхона чиқимлари',
   statKpiMargin: 'Фойда даражаси',
-  statKpiMarginHint: 'Соф фойда / тушум',
+  statKpiMarginHint: 'Соф фойда / жами сотув',
   statSectionMoney: 'Пул ҳаракати',
   statSectionMoneyDesc: 'Сотув, кўча объектлари, чиқимлар ва қарз қолдиқлари.',
-  statMoneySalesIn: 'Сотувдан кирим',
+  statMoneySalesIn: 'Жами сотилган сумма (мижоз)',
+  statMoneyGrossProfit: 'Савдо фойдаси',
   statMoneyPurchases: 'Кўча объектидан жами харид',
   statMoneyPaidSuppliers: 'Кўча объектига тўланган',
   statMoneySupplierDebt: 'Кўча объектига қарз қолдиғи',
@@ -1978,6 +1993,8 @@ const ru: T = {
   navDatePickStart: 'Выберите дату начала',
   navDatePickEnd: 'Выберите дату окончания',
   navDateThisWeek: 'Эта неделя',
+  navDateHasGoodsIntake: 'В этот день было поступление на склад',
+  navDateGoodsIntakeLegend: 'Зелёная точка — день поступления на склад',
   navWeekdayShort: 'Пн,Вт,Ср,Чт,Пт,Сб,Вс',
 
   authTitle: 'Saralash',
@@ -2055,20 +2072,23 @@ const ru: T = {
   statPeriodLabel: 'Период',
   statHeroLabel: 'Чистая прибыль',
   statHeroNote:
-    'Выручка от продаж минус себестоимость и расходы компании из раздела «Расходы» (зарплата, аренда и т.п.).',
-  statKpiRevenue: 'Выручка',
-  statKpiRevenueHint: 'Сумма продаж за период',
+    'Пример: купили за 500, продали за 1000 — продажи 1000, торговая прибыль 500. Чистая прибыль = торговая прибыль минус «Расходы» (зарплата, аренда).',
+  statKpiRevenue: 'Сумма продаж',
+  statKpiRevenueHint: 'Что заплатил клиент (не прибыль). Продали за 1000 — здесь 1000.',
   statKpiCogs: 'Себестоимость',
-  statKpiCogsHint: 'Закупочная стоимость проданных товаров',
+  statKpiCogsHint: 'Закупочная стоимость проданного. В примере 500.',
+  statKpiGrossProfit: 'Торговая прибыль',
+  statKpiGrossProfitHint: 'Продажи − себестоимость. Пример: 1000 − 500 = 500 сум.',
   statKpiExpenses: 'Расходы компании',
   statKpiExpensesHint: 'Сумма записей в разделе «Расходы» за выбранный период',
   statKpiProfit: 'Чистая прибыль',
-  statKpiProfitHint: 'Выручка − себестоимость − расходы',
+  statKpiProfitHint: 'Торговая прибыль − расходы компании',
   statKpiMargin: 'Рентабельность',
-  statKpiMarginHint: 'Чистая прибыль / выручка',
+  statKpiMarginHint: 'Чистая прибыль / сумма продаж',
   statSectionMoney: 'Движение денег',
   statSectionMoneyDesc: 'Продажи, закупки, расходы и долги.',
-  statMoneySalesIn: 'Поступление от продаж',
+  statMoneySalesIn: 'Сумма продаж (клиент)',
+  statMoneyGrossProfit: 'Торговая прибыль',
   statMoneyPurchases: 'Закуплено у уличных объектов',
   statMoneyPaidSuppliers: 'Оплачено уличным объектам',
   statMoneySupplierDebt: 'Долг уличным объектам',

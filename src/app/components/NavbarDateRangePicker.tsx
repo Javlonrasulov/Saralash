@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useApp } from '../i18n/app-context';
 import { useNavDateFilter } from '../context/nav-date-range-context';
+import { useStore } from '../store/saralash-store';
 import type { NavDateFilter } from '../lib/nav-date-range';
 import {
   addDays,
   clampYmdToMax,
+  collectGoodsIntakeYmdSet,
   endOfMonth,
   formatYmdDisplay,
   parseDdMmYyyy,
@@ -39,6 +41,7 @@ function localeFromLang(lang: string): string {
 export function NavbarDateRangePicker() {
   const { t, lang } = useApp();
   const { filter, setFilter } = useNavDateFilter();
+  const { state } = useStore();
   const maxYmd = todayYmd();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -234,6 +237,18 @@ export function NavbarDateRangePicker() {
 
   const cells = useMemo(() => monthGridCells(viewYear, viewMonth), [viewYear, viewMonth]);
 
+  const goodsIntakeDates = useMemo(
+    () =>
+      collectGoodsIntakeYmdSet({
+        warehouseIncomeDates: state.warehouseItems.map((w) => w.incomeDate),
+        purchaseIncomeDates: [
+          ...state.supplierPurchases.map((p) => p.incomeDate),
+          ...state.streetPurchases.map((p) => p.incomeDate),
+        ],
+      }),
+    [state.warehouseItems, state.supplierPurchases, state.streetPurchases],
+  );
+
   const now = new Date();
   const canGoNextMonth =
     viewYear < now.getFullYear() ||
@@ -404,14 +419,16 @@ export function NavbarDateRangePicker() {
               const isFuture = ymd > maxYmd;
               const isEdge = ymd === draftFrom || ymd === draftTo;
               const mid = inRangeVisual(ymd) && !isEdge && !isFuture;
+              const hasGoodsIntake = !isFuture && goodsIntakeDates.has(ymd);
               return (
                 <button
                   key={ymd}
                   type="button"
                   disabled={isFuture}
                   onClick={() => onDayClick(day)}
+                  title={hasGoodsIntake ? t.navDateHasGoodsIntake : undefined}
                   className={cn(
-                    'aspect-square rounded-lg text-xs font-medium transition-colors',
+                    'relative flex aspect-square flex-col items-center justify-center rounded-lg pb-1 text-xs font-medium transition-colors',
                     isFuture && 'cursor-not-allowed text-slate-300 opacity-35 dark:text-slate-600',
                     !isFuture &&
                       isEdge &&
@@ -422,16 +439,31 @@ export function NavbarDateRangePicker() {
                       'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800',
                   )}
                 >
-                  {day}
+                  <span className="leading-none">{day}</span>
+                  {hasGoodsIntake && (
+                    <span
+                      className={cn(
+                        'mt-0.5 h-1 w-1 shrink-0 rounded-full',
+                        isEdge ? 'bg-white/95' : 'bg-emerald-500 dark:bg-emerald-400',
+                      )}
+                      aria-hidden
+                    />
+                  )}
                 </button>
               );
             })}
           </div>
 
-          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-            <CalendarIcon size={12} className="shrink-0 opacity-70" />
-            {pickHint === 'start' ? t.navDatePickStart : t.navDatePickEnd}
-          </p>
+          <div className="mt-2 space-y-1">
+            <p className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+              <CalendarIcon size={12} className="shrink-0 opacity-70" />
+              {pickHint === 'start' ? t.navDatePickStart : t.navDatePickEnd}
+            </p>
+            <p className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
+              <span className="h-1 w-1 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+              {t.navDateGoodsIntakeLegend}
+            </p>
+          </div>
             </div>
 
             <div className="shrink-0 border-t border-slate-100 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
