@@ -2,7 +2,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { NavLink, Outlet, useLocation } from 'react-router';
-import { LayoutDashboard, Recycle, Boxes, Users, UserCog, Receipt, Truck, MapPin, Wallet, Sun, Moon, LogOut, Menu, X, Globe, ChevronDown, ChevronLeft, ChevronRight, Check, Eye, EyeOff, BarChart3, User as UserIcon, Minus, Plus, Type, } from 'lucide-react';
+import { LayoutDashboard, Recycle, Boxes, Users, UserCog, Receipt, Truck, MapPin, Wallet, Sun, Moon, LogOut, Menu, X, Globe, ChevronDown, ChevronLeft, ChevronRight, Check, Eye, EyeOff, BarChart3, User as UserIcon, Minus, Plus, Type, RefreshCw, } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useApp } from '../i18n/app-context';
 import { useFontScale } from '../context/font-scale-context';
@@ -20,6 +20,49 @@ const LANG_OPTIONS = [
     { value: 'uz_cyrillic', short: 'КИ', label: 'Ўзбек (Кирил)', flag: '🇺🇿' },
     { value: 'ru', short: 'RU', label: 'Русский', flag: '🇷🇺' },
 ];
+const HARD_REFRESH_FLAG = 'saralash_hard_refresh_ok';
+function NavbarHardRefresh() {
+    const { t } = useApp();
+    const [status, setStatus] = useState('idle');
+    useEffect(() => {
+        try {
+            if (sessionStorage.getItem(HARD_REFRESH_FLAG) === '1') {
+                sessionStorage.removeItem(HARD_REFRESH_FLAG);
+                setStatus('success');
+                const timer = window.setTimeout(() => setStatus('idle'), 2500);
+                return () => window.clearTimeout(timer);
+            }
+        }
+        catch {
+            /* ignore */
+        }
+    }, []);
+    const handleRefresh = async () => {
+        if (status === 'loading')
+            return;
+        setStatus('loading');
+        try {
+            sessionStorage.setItem(HARD_REFRESH_FLAG, '1');
+        }
+        catch {
+            /* ignore */
+        }
+        try {
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map((key) => caches.delete(key)));
+            }
+        }
+        catch {
+            /* ignore */
+        }
+        window.location.reload();
+    };
+    const label = status === 'success' ? t.navRefreshDone : status === 'loading' ? t.navRefreshLoading : t.navRefresh;
+    return (_jsx("button", { type: "button", onClick: () => void handleRefresh(), disabled: status === 'loading', title: label, "aria-label": label, className: `shrink-0 rounded-xl p-2 transition-colors hover:bg-slate-100 disabled:opacity-60 dark:hover:bg-slate-800 ${status === 'success'
+            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+            : 'text-slate-500'}`, children: status === 'success' ? (_jsx(Check, { size: 16, strokeWidth: 2.5 })) : (_jsx(RefreshCw, { size: 16, className: status === 'loading' ? 'animate-spin' : undefined })) }));
+}
 function FontScaleControls() {
     const { t } = useApp();
     const { decrease, increase, canDecrease, canIncrease, fontScale } = useFontScale();
@@ -184,5 +227,5 @@ export function Layout() {
                                     : 'border-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'} ${collapsed ? 'justify-center' : ''}`, children: [_jsx(Icon, { size: 18, className: `shrink-0 ${isActive
                                             ? 'text-indigo-500 dark:text-indigo-400'
                                             : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-white'}` }), !collapsed && _jsx("span", { className: "truncate text-xs font-medium", children: item.label }), !collapsed && isActive && (_jsx("span", { className: "ml-auto h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400" })), collapsed && (_jsx("span", { className: "pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-white opacity-0 shadow-xl group-hover:opacity-100", children: item.label }))] }, item.path));
-                        }) }), _jsx("div", { className: "border-t border-slate-100 p-2 dark:border-slate-700/50", children: _jsx("button", { type: "button", onClick: () => setCollapsed((v) => !v), className: "hidden w-full items-center justify-center rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white lg:flex", children: collapsed ? _jsx(ChevronRight, { size: 16 }) : _jsx(ChevronLeft, { size: 16 }) }) })] }), _jsxs("div", { className: `flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-300 ${collapsed ? 'lg:ml-16' : 'lg:ml-64'}`, children: [_jsxs("header", { className: "z-10 shrink-0 border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900", children: [_jsxs("div", { className: "flex flex-col px-3 py-2 lg:h-14 lg:flex-row lg:items-center lg:gap-3 lg:px-5 lg:py-0", children: [_jsxs("div", { className: "flex min-w-0 items-center gap-2 lg:flex-1", children: [_jsx("button", { type: "button", onClick: () => setMobileOpen(true), className: "shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden", "aria-label": "Menu", children: _jsx(Menu, { size: 18 }) }), _jsx("h1", { className: "min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-white sm:text-base", children: pageTitle })] }), _jsxs("div", { className: "mt-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 hide-scrollbar sm:gap-1.5 lg:mt-0 lg:shrink-0 lg:overflow-visible lg:pb-0", children: [_jsx(NavbarDateRangePicker, {}), _jsx("button", { type: "button", onClick: () => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark'), className: "shrink-0 rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800", "aria-label": "Theme", children: resolvedTheme === 'dark' ? _jsx(Sun, { size: 16 }) : _jsx(Moon, { size: 16 }) }), _jsx(FontScaleControls, {}), _jsx(LanguageDropdown, {}), _jsxs("div", { className: "hidden shrink-0 items-center gap-2 border-l border-slate-200 pl-2 dark:border-slate-700 md:flex", children: [_jsxs("button", { type: "button", onClick: () => setProfileOpen(true), className: "flex max-w-[200px] items-center gap-2 rounded-xl px-1.5 py-1 text-left transition-colors hover:bg-slate-100 dark:hover:bg-slate-800", title: t.authProfileTitle, children: [_jsx("div", { className: "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-blue-600", children: _jsx(UserIcon, { size: 12, className: "text-white" }) }), _jsxs("div", { className: "hidden min-w-0 lg:block", children: [_jsx("p", { className: "truncate text-xs font-medium text-slate-700 dark:text-slate-200", children: user?.fullName ?? '—' }), _jsx("p", { className: "text-[10px] text-slate-400", children: user?.positions?.length ? (_jsx("span", { className: "line-clamp-2 block text-slate-600 dark:text-slate-300", children: user.positions.join(' · ') })) : (_jsx("span", { className: "truncate text-slate-500", children: user?.login ?? '' })) })] })] }), _jsx("button", { type: "button", onClick: () => logout(), title: t.authLogout, className: "rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800", children: _jsx(LogOut, { size: 16 }) })] }), _jsx("button", { type: "button", onClick: () => setProfileOpen(true), title: t.authProfileTitle, className: "shrink-0 rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden", children: _jsx(UserIcon, { size: 16 }) }), _jsx("button", { type: "button", onClick: () => logout(), title: t.authLogout, className: "shrink-0 rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden", children: _jsx(LogOut, { size: 16 }) })] })] }), _jsx(NavMobileDateRangeBar, {})] }), _jsx(ProfileCredentialsDialog, { open: profileOpen, onOpenChange: setProfileOpen }), _jsx("main", { className: "min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden", children: _jsx("div", { className: "mx-auto w-full max-w-[1400px] px-3 py-4 sm:px-5 sm:py-6 lg:px-8", children: _jsx(Outlet, {}) }) })] })] }));
+                        }) }), _jsx("div", { className: "border-t border-slate-100 p-2 dark:border-slate-700/50", children: _jsx("button", { type: "button", onClick: () => setCollapsed((v) => !v), className: "hidden w-full items-center justify-center rounded-xl p-2.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white lg:flex", children: collapsed ? _jsx(ChevronRight, { size: 16 }) : _jsx(ChevronLeft, { size: 16 }) }) })] }), _jsxs("div", { className: `flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-300 ${collapsed ? 'lg:ml-16' : 'lg:ml-64'}`, children: [_jsxs("header", { className: "z-10 shrink-0 border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900", children: [_jsxs("div", { className: "flex flex-col px-3 py-2 lg:h-14 lg:flex-row lg:items-center lg:gap-3 lg:px-5 lg:py-0", children: [_jsxs("div", { className: "flex min-w-0 items-center gap-2 lg:flex-1", children: [_jsx("button", { type: "button", onClick: () => setMobileOpen(true), className: "shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden", "aria-label": "Menu", children: _jsx(Menu, { size: 18 }) }), _jsx("h1", { className: "min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-white sm:text-base", children: pageTitle })] }), _jsxs("div", { className: "mt-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 hide-scrollbar sm:gap-1.5 lg:mt-0 lg:shrink-0 lg:overflow-visible lg:pb-0", children: [_jsx(NavbarDateRangePicker, {}), _jsx(NavbarHardRefresh, {}), _jsx("button", { type: "button", onClick: () => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark'), className: "shrink-0 rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800", "aria-label": "Theme", children: resolvedTheme === 'dark' ? _jsx(Sun, { size: 16 }) : _jsx(Moon, { size: 16 }) }), _jsx(FontScaleControls, {}), _jsx(LanguageDropdown, {}), _jsxs("div", { className: "hidden shrink-0 items-center gap-2 border-l border-slate-200 pl-2 dark:border-slate-700 md:flex", children: [_jsxs("button", { type: "button", onClick: () => setProfileOpen(true), className: "flex max-w-[200px] items-center gap-2 rounded-xl px-1.5 py-1 text-left transition-colors hover:bg-slate-100 dark:hover:bg-slate-800", title: t.authProfileTitle, children: [_jsx("div", { className: "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-blue-600", children: _jsx(UserIcon, { size: 12, className: "text-white" }) }), _jsxs("div", { className: "hidden min-w-0 lg:block", children: [_jsx("p", { className: "truncate text-xs font-medium text-slate-700 dark:text-slate-200", children: user?.fullName ?? '—' }), _jsx("p", { className: "text-[10px] text-slate-400", children: user?.positions?.length ? (_jsx("span", { className: "line-clamp-2 block text-slate-600 dark:text-slate-300", children: user.positions.join(' · ') })) : (_jsx("span", { className: "truncate text-slate-500", children: user?.login ?? '' })) })] })] }), _jsx("button", { type: "button", onClick: () => logout(), title: t.authLogout, className: "rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800", children: _jsx(LogOut, { size: 16 }) })] }), _jsx("button", { type: "button", onClick: () => setProfileOpen(true), title: t.authProfileTitle, className: "shrink-0 rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden", children: _jsx(UserIcon, { size: 16 }) }), _jsx("button", { type: "button", onClick: () => logout(), title: t.authLogout, className: "shrink-0 rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden", children: _jsx(LogOut, { size: 16 }) })] })] }), _jsx(NavMobileDateRangeBar, {})] }), _jsx(ProfileCredentialsDialog, { open: profileOpen, onOpenChange: setProfileOpen }), _jsx("main", { className: "min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden", children: _jsx("div", { className: "mx-auto w-full max-w-[1400px] px-3 py-4 sm:px-5 sm:py-6 lg:px-8", children: _jsx(Outlet, {}) }) })] })] }));
 }

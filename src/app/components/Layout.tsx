@@ -28,6 +28,7 @@ import {
   Minus,
   Plus,
   Type,
+  RefreshCw,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useApp } from '../i18n/app-context';
@@ -55,6 +56,69 @@ const LANG_OPTIONS: { value: Language; short: string; label: string; flag: strin
   { value: 'uz_cyrillic', short: 'КИ', label: 'Ўзбек (Кирил)', flag: '🇺🇿' },
   { value: 'ru', short: 'RU', label: 'Русский', flag: '🇷🇺' },
 ];
+
+const HARD_REFRESH_FLAG = 'saralash_hard_refresh_ok';
+
+function NavbarHardRefresh() {
+  const { t } = useApp();
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(HARD_REFRESH_FLAG) === '1') {
+        sessionStorage.removeItem(HARD_REFRESH_FLAG);
+        setStatus('success');
+        const timer = window.setTimeout(() => setStatus('idle'), 2500);
+        return () => window.clearTimeout(timer);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleRefresh = async () => {
+    if (status === 'loading') return;
+    setStatus('loading');
+    try {
+      sessionStorage.setItem(HARD_REFRESH_FLAG, '1');
+    } catch {
+      /* ignore */
+    }
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      }
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  };
+
+  const label =
+    status === 'success' ? t.navRefreshDone : status === 'loading' ? t.navRefreshLoading : t.navRefresh;
+
+  return (
+    <button
+      type="button"
+      onClick={() => void handleRefresh()}
+      disabled={status === 'loading'}
+      title={label}
+      aria-label={label}
+      className={`shrink-0 rounded-xl p-2 transition-colors hover:bg-slate-100 disabled:opacity-60 dark:hover:bg-slate-800 ${
+        status === 'success'
+          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+          : 'text-slate-500'
+      }`}
+    >
+      {status === 'success' ? (
+        <Check size={16} strokeWidth={2.5} />
+      ) : (
+        <RefreshCw size={16} className={status === 'loading' ? 'animate-spin' : undefined} />
+      )}
+    </button>
+  );
+}
 
 function FontScaleControls() {
   const { t } = useApp();
@@ -539,6 +603,8 @@ export function Layout() {
 
           <div className="mt-1.5 flex min-w-0 items-center gap-1 overflow-x-auto pb-0.5 hide-scrollbar sm:gap-1.5 lg:mt-0 lg:shrink-0 lg:overflow-visible lg:pb-0">
             <NavbarDateRangePicker />
+
+            <NavbarHardRefresh />
 
             <button
               type="button"

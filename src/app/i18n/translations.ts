@@ -414,6 +414,10 @@ export interface T {
   navDateThisWeek: string;
   navDateHasGoodsIntake: string;
   navDateGoodsIntakeLegend: string;
+
+  navRefresh: string;
+  navRefreshLoading: string;
+  navRefreshDone: string;
   navWeekdayShort: string;
 
   // Auth
@@ -944,6 +948,9 @@ const uz_latin: T = {
   navDateThisWeek: 'Bu hafta',
   navDateHasGoodsIntake: 'Bu kunda omborga tovar kirimi bor',
   navDateGoodsIntakeLegend: 'Yashil nuqta — omborga kirim bo‘lgan kun',
+  navRefresh: 'Sahifani yangilash (hard refresh)',
+  navRefreshLoading: 'Yangilanmoqda...',
+  navRefreshDone: 'Sahifa yangilandi',
   navWeekdayShort: 'Du,Se,Ch,Pa,Ju,Sh,Ya',
 
   authTitle: 'Saralash tizimi',
@@ -1477,6 +1484,9 @@ const uz_cyrillic: T = {
   navDateThisWeek: 'Бу ҳафта',
   navDateHasGoodsIntake: 'Бу кунда омборга товар кирими бор',
   navDateGoodsIntakeLegend: 'Яшил нуқта — омборга кирим бўлган кун',
+  navRefresh: 'Янгилаш',
+  navRefreshLoading: 'Юкланмоқда...',
+  navRefreshDone: 'Саҳифа янгиланди',
   navWeekdayShort: 'Ду,Се,Чор,Пай,Жу,Шан,Як',
 
   authTitle: 'Саралаш тизими',
@@ -2009,6 +2019,9 @@ const ru: T = {
   navDateThisWeek: 'Эта неделя',
   navDateHasGoodsIntake: 'В этот день было поступление на склад',
   navDateGoodsIntakeLegend: 'Зелёная точка — день поступления на склад',
+  navRefresh: 'Обновить страницу',
+  navRefreshLoading: 'Обновление...',
+  navRefreshDone: 'Страница обновлена',
   navWeekdayShort: 'Пн,Вт,Ср,Чт,Пт,Сб,Вс',
 
   authTitle: 'Saralash',
