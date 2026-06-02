@@ -114,6 +114,11 @@ export interface T {
   whProductIconHint: string;
   whTabStock: string;
   whTabSold: string;
+  /** Ombor KPI: jami kg */
+  whTotalStockKg: string;
+  /** Ombor KPI: sotib olish narxi bo‘yicha jami qiymat */
+  whStockPurchaseValue: string;
+  whStockPurchaseValueHint: string;
   whSell: string;
   whUseInProduction: string;
   whSellQuantity: string;
@@ -651,6 +656,9 @@ const uz_latin: T = {
   whFilterAll: 'Barcha kategoriyalar',
   whTabStock: 'Omborda',
   whTabSold: 'Sotilgan',
+  whTotalStockKg: 'kg jami',
+  whStockPurchaseValue: 'Ombor qiymati (sotib olish)',
+  whStockPurchaseValueHint: 'Har bir qator: qoldiq × baza narxi (bo‘lmasa ko‘cha narxi).',
   whSell: 'Sotish',
   whUseInProduction: 'Ishlatish',
   whSellQuantity: 'Sotiladigan miqdor',
@@ -1181,6 +1189,9 @@ const uz_cyrillic: T = {
   whFilterAll: 'Барча категориялар',
   whTabStock: 'Омборда',
   whTabSold: 'Сотилган',
+  whTotalStockKg: 'kg jami',
+  whStockPurchaseValue: 'Омбор қиймати (сотиб олиш)',
+  whStockPurchaseValueHint: 'Ҳар бир қатор: қолдиқ × база нархи (бўлмаса кўча нархи).',
   whSell: 'Сотиш',
   whUseInProduction: 'Ишлатиш',
   whSellQuantity: 'Сотиладиган миқдор',
@@ -1711,6 +1722,9 @@ const ru: T = {
   whFilterAll: 'Все категории',
   whTabStock: 'На складе',
   whTabSold: 'Продано',
+  whTotalStockKg: 'кг всего',
+  whStockPurchaseValue: 'Стоимость склада (закупка)',
+  whStockPurchaseValueHint: 'По строкам: остаток × цена базы (иначе цена с улицы).',
   whSell: 'Продать',
   whUseInProduction: 'Использовать',
   whSellQuantity: 'Кол-во к продаже',

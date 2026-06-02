@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Search, Package, TrendingUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Package, TrendingUp, Coins } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore, type CategoryKey, type WarehouseItem } from '../store/saralash-store';
 import { useNavDateFilter } from '../context/nav-date-range-context';
@@ -59,6 +59,7 @@ import {
   type ProductIconPhotoId,
 } from '../utils/category';
 import { formatDate, formatNumber, TODAY, uid } from '../utils/format';
+import { warehouseStockLineValue } from '../utils/warehouse-price';
 import { cn } from '../components/ui/utils';
 
 function formatWarehouseUnitPrice(n: number | null | undefined): string {
@@ -685,6 +686,14 @@ export function Warehouse() {
     return totals;
   }, [state.warehouseItems]);
 
+  const stockPurchaseValue = useMemo(() => {
+    let total = 0;
+    for (const w of state.warehouseItems) {
+      total += warehouseStockLineValue(w);
+    }
+    return total;
+  }, [state.warehouseItems]);
+
   const handleDelete = () => {
     if (!confirmDelete) return;
     deleteWarehouseItem(confirmDelete.id);
@@ -713,14 +722,26 @@ export function Warehouse() {
   return (
     <div className="space-y-4">
       {/* KPI */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card className="flex items-center gap-3 p-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/30">
             <Package size={18} className="text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">kg jami</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t.whTotalStockKg}</p>
             <p className="nums text-lg font-bold">{formatNumber(totalsByUnit.kg)} kg</p>
+          </div>
+        </Card>
+        <Card className="flex items-center gap-3 p-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
+            <Coins size={18} className="text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t.whStockPurchaseValue}</p>
+            <p className="nums text-lg font-bold">{formatNumber(stockPurchaseValue)} so'm</p>
+            <p className="mt-0.5 text-[10px] leading-snug text-slate-400 dark:text-slate-500">
+              {t.whStockPurchaseValueHint}
+            </p>
           </div>
         </Card>
         <Card className="flex items-center gap-3 p-4">
